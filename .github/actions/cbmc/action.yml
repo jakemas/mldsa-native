@@ -43,11 +43,11 @@ runs:
               - Cadical Version $(cadical --version)
               - $(bash --version | grep -m1 "")
             EOF
-      - name: Run CBMC proofs (DILITHIUM_MODE=${{ inputs.mldsa_mode }})
+      - name: Run CBMC proofs (MLD_MODE=${{ inputs.mldsa_mode }})
         shell: ${{ env.SHELL }}
         # TODO: change to  tests cbmc script
         run: |
           echo "::group::cbmc_${{ inputs.mldsa_mode }}"
           cd proofs/cbmc;
-          DILITHIUM_MODE=${{ inputs.mldsa_mode }} python3 run-cbmc-proofs.py;
+          MLD_MODE=${{ inputs.mldsa_mode }} python3 run-cbmc-proofs.py;
           echo "::endgroup::"

@@ -4,6 +4,7 @@
  */
 #include "sign.h"
 #include <stdint.h>
+#include <string.h>
 #include "fips202/fips202.h"
 #include "packing.h"
 #include "params.h"
@@ -13,18 +14,21 @@
 #include "symmetric.h"
 
 /*************************************************
- * Name:        crypto_sign_keypair
+ * Name:        crypto_sign_keypair_internal
  *
- * Description: Generates public and private key.
+ * Description: FIPS 204: Algorithm 6 ML-DSA.KeyGen_internal.
+ *              Generates public and private key. Internal API.
  *
- * Arguments:   - uint8_t *pk: pointer to output public key (allocated
- *                             array of CRYPTO_PUBLICKEYBYTES bytes)
- *              - uint8_t *sk: pointer to output private key (allocated
- *                             array of CRYPTO_SECRETKEYBYTES bytes)
+ * Arguments:   - uint8_t *pk:   pointer to output public key (allocated
+ *                               array of CRYPTO_PUBLICKEYBYTES bytes)
+ *              - uint8_t *sk:   pointer to output private key (allocated
+ *                               array of CRYPTO_SECRETKEYBYTES bytes)
+ *              - uint8_t *seed: pointer to input random seed (SEEDBYTES bytes)
  *
  * Returns 0 (success)
  **************************************************/
-int crypto_sign_keypair(uint8_t *pk, uint8_t *sk)
+int crypto_sign_keypair_internal(uint8_t *pk, uint8_t *sk,
+                                 const uint8_t seed[SEEDBYTES])
 {
   uint8_t seedbuf[2 * SEEDBYTES + CRHBYTES];
   uint8_t tr[TRBYTES];
@@ -34,7 +38,7 @@ int crypto_sign_keypair(uint8_t *pk, uint8_t *sk)
   polyveck s2, t1, t0;
 
   /* Get randomness for rho, rhoprime and key */
-  randombytes(seedbuf, SEEDBYTES);
+  memcpy(seedbuf, seed, SEEDBYTES);
   seedbuf[SEEDBYTES + 0] = K;
   seedbuf[SEEDBYTES + 1] = L;
   shake256(seedbuf, 2 * SEEDBYTES + CRHBYTES, seedbuf, SEEDBYTES + 2);
@@ -67,8 +71,27 @@ int crypto_sign_keypair(uint8_t *pk, uint8_t *sk)
   /* Compute H(rho, t1) and write secret key */
   shake256(tr, TRBYTES, pk, CRYPTO_PUBLICKEYBYTES);
   pack_sk(sk, rho, tr, key, &t0, &s1, &s2);
-
   return 0;
+}
+
+/*************************************************
+ * Name:        crypto_sign_keypair
+ *
+ * Description: FIPS 204: Algorithm 1 ML-DSA.KeyGen
+ *              Generates public and private key.
+ *
+ * Arguments:   - uint8_t *pk:   pointer to output public key (allocated
+ *                               array of CRYPTO_PUBLICKEYBYTES bytes)
+ *              - uint8_t *sk:   pointer to output private key (allocated
+ *                               array of CRYPTO_SECRETKEYBYTES bytes)
+ *
+ * Returns 0 (success)
+ **************************************************/
+int crypto_sign_keypair(uint8_t *pk, uint8_t *sk)
+{
+  uint8_t seed[SEEDBYTES];
+  randombytes(seed, SEEDBYTES);
+  return crypto_sign_keypair_internal(pk, sk, seed);
 }
 
 /*************************************************
@@ -224,7 +247,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen, const uint8_t *m,
   for (i = 0; i < ctxlen; i++)
     pre[2 + i] = ctx[i];
 
-#ifdef DILITHIUM_RANDOMIZED_SIGNING
+#ifdef MLD_RANDOMIZED_SIGNING
   randombytes(rnd, RNDBYTES);
 #else
   for (i = 0; i < RNDBYTES; i++)

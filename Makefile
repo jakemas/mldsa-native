@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: func kat nistkat \
-	func_44 kat_44 nistkat_44 \
-	func_65 kat_65 nistkat_65 \
-	func_87 kat_87 nistkat_87 \
+.PHONY: func kat nistkat acvp \
+	func_44 kat_44 nistkat_44 acvp_44 \
+	func_65 kat_65 nistkat_65 acvp_65 \
+	func_87 kat_87 nistkat_87 acvp_87 \
 	run_func run_kat run_nistkat \
 	run_func_44 run_kat_44 run_nistkat_44 \
 	run_func_65 run_kat_65 run_nistkat_65 \
@@ -22,10 +22,10 @@ include test/mk/rules.mk
 
 quickcheck: test
 
-build: func nistkat kat
+build: func nistkat kat acvp
 	$(Q)echo "  Everything builds fine!"
 
-test: run_kat run_nistkat run_func
+test: run_kat run_nistkat run_func run_acvp
 	$(Q)echo "  Everything checks fine!"
 
 
@@ -53,6 +53,8 @@ run_func_65: func_65
 run_func_87: func_87
 	$(W) $(MLDSA87_DIR)/bin/test_mldsa87
 run_func: run_func_44 run_func_65 run_func_87
+run_acvp: acvp
+	python3 ./test/acvp_client.py
 
 func_44: $(MLDSA44_DIR)/bin/test_mldsa44
 	$(Q)echo "  FUNC       ML-DSA-44:   $^"
@@ -77,6 +79,14 @@ kat_65: $(MLDSA65_DIR)/bin/gen_KAT65
 kat_87: $(MLDSA87_DIR)/bin/gen_KAT87
 	$(Q)echo "  KAT        ML-DSA-87:  $^"
 kat: kat_44 kat_65 kat_87
+
+acvp_44:  $(MLDSA44_DIR)/bin/acvp_mldsa44
+	$(Q)echo "  ACVP       ML-DSA-44:   $^"
+acvp_65:  $(MLDSA65_DIR)/bin/acvp_mldsa65
+	$(Q)echo "  ACVP       ML-DSA-65:   $^"
+acvp_87: $(MLDSA87_DIR)/bin/acvp_mldsa87
+	$(Q)echo "  ACVP       ML-DSA-87:  $^"
+acvp: acvp_44 acvp_65 acvp_87
 
 lib: $(BUILD_DIR)/libmldsa.a $(BUILD_DIR)/libmldsa44.a $(BUILD_DIR)/libmldsa65.a $(BUILD_DIR)/libmldsa87.a
 

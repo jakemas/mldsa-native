@@ -16,7 +16,7 @@
 #define D 13
 #define ROOT_OF_UNITY 1753
 
-#if DILITHIUM_MODE == 2
+#if MLD_MODE == 2
 #define K 4
 #define L 4
 #define ETA 2
@@ -27,7 +27,7 @@
 #define OMEGA 80
 #define CTILDEBYTES 32
 
-#elif DILITHIUM_MODE == 3
+#elif MLD_MODE == 3
 #define K 6
 #define L 5
 #define ETA 4
@@ -38,7 +38,7 @@
 #define OMEGA 55
 #define CTILDEBYTES 48
 
-#elif DILITHIUM_MODE == 5
+#elif MLD_MODE == 5
 #define K 8
 #define L 7
 #define ETA 2

@@ -13,12 +13,12 @@
 
 
 
-#if DILITHIUM_MODE == 2
-#define CRYPTO_ALGNAME "Dilithium2"
-#elif DILITHIUM_MODE == 3
-#define CRYPTO_ALGNAME "Dilithium3"
-#elif DILITHIUM_MODE == 5
-#define CRYPTO_ALGNAME "Dilithium5"
+#if MLD_MODE == 2
+#define CRYPTO_ALGNAME "ML-DSA-44"
+#elif MLD_MODE == 3
+#define CRYPTO_ALGNAME "ML-DSA-65"
+#elif MLD_MODE == 5
+#define CRYPTO_ALGNAME "ML-DSA-87"
 #endif
 
 static void fprintBstr(FILE *fp, const char *S, const uint8_t *A, size_t L)

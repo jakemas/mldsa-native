@@ -3,7 +3,7 @@
 FIPS202_SRCS = $(wildcard mldsa/fips202/*.c)
 SOURCES += $(wildcard mldsa/*.c)
 
-ALL_TESTS = test_mldsa gen_NISTKAT gen_KAT
+ALL_TESTS = test_mldsa acvp_mldsa gen_NISTKAT gen_KAT
 NON_NIST_TESTS = $(filter-out gen_NISTKAT,$(ALL_TESTS))
 
 MLDSA44_DIR = $(BUILD_DIR)/mldsa44
@@ -11,11 +11,11 @@ MLDSA65_DIR = $(BUILD_DIR)/mldsa65
 MLDSA87_DIR = $(BUILD_DIR)/mldsa87
 
 MLDSA44_OBJS = $(call MAKE_OBJS,$(MLDSA44_DIR),$(SOURCES) $(FIPS202_SRCS))
-$(MLDSA44_OBJS): CFLAGS += -DDILITHIUM_MODE=2
+$(MLDSA44_OBJS): CFLAGS += -DMLD_MODE=2
 MLDSA65_OBJS = $(call MAKE_OBJS,$(MLDSA65_DIR),$(SOURCES) $(FIPS202_SRCS))
-$(MLDSA65_OBJS): CFLAGS += -DDILITHIUM_MODE=3
+$(MLDSA65_OBJS): CFLAGS += -DMLD_MODE=3
 MLDSA87_OBJS = $(call MAKE_OBJS,$(MLDSA87_DIR),$(SOURCES) $(FIPS202_SRCS))
-$(MLDSA87_OBJS): CFLAGS += -DDILITHIUM_MODE=5
+$(MLDSA87_OBJS): CFLAGS += -DMLD_MODE=5
 
 $(BUILD_DIR)/libmldsa44.a: $(MLDSA44_OBJS)
 $(BUILD_DIR)/libmldsa65.a: $(MLDSA65_OBJS)
@@ -37,9 +37,9 @@ $(MLDSA44_DIR)/bin/bench_components_mldsa44: $(MLDSA44_DIR)/test/hal/hal.c.o
 $(MLDSA65_DIR)/bin/bench_components_mldsa65: $(MLDSA65_DIR)/test/hal/hal.c.o
 $(MLDSA87_DIR)/bin/bench_components_mldsa87: $(MLDSA87_DIR)/test/hal/hal.c.o
 
-$(MLDSA44_DIR)/bin/%: CFLAGS += -DDILITHIUM_MODE=2
-$(MLDSA65_DIR)/bin/%: CFLAGS += -DDILITHIUM_MODE=3
-$(MLDSA87_DIR)/bin/%: CFLAGS += -DDILITHIUM_MODE=5
+$(MLDSA44_DIR)/bin/%: CFLAGS += -DMLD_MODE=2
+$(MLDSA65_DIR)/bin/%: CFLAGS += -DMLD_MODE=3
+$(MLDSA87_DIR)/bin/%: CFLAGS += -DMLD_MODE=5
 
 # Link tests with respective library
 define ADD_SOURCE

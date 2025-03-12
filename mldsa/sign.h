@@ -11,37 +11,42 @@
 #include "poly.h"
 #include "polyvec.h"
 
-#define crypto_sign_keypair DILITHIUM_NAMESPACE(keypair)
+
+#define crypto_sign_keypair_internal MLD_NAMESPACE(keypair_internal)
+int crypto_sign_keypair_internal(uint8_t *pk, uint8_t *sk,
+                                 const uint8_t seed[SEEDBYTES]);
+
+#define crypto_sign_keypair MLD_NAMESPACE(keypair)
 int crypto_sign_keypair(uint8_t *pk, uint8_t *sk);
 
-#define crypto_sign_signature_internal DILITHIUM_NAMESPACE(signature_internal)
+#define crypto_sign_signature_internal MLD_NAMESPACE(signature_internal)
 int crypto_sign_signature_internal(uint8_t *sig, size_t *siglen,
                                    const uint8_t *m, size_t mlen,
                                    const uint8_t *pre, size_t prelen,
                                    const uint8_t rnd[RNDBYTES],
                                    const uint8_t *sk);
 
-#define crypto_sign_signature DILITHIUM_NAMESPACE(signature)
+#define crypto_sign_signature MLD_NAMESPACE(signature)
 int crypto_sign_signature(uint8_t *sig, size_t *siglen, const uint8_t *m,
                           size_t mlen, const uint8_t *ctx, size_t ctxlen,
                           const uint8_t *sk);
 
-#define crypto_sign DILITHIUM_NAMESPACETOP
+#define crypto_sign MLD_NAMESPACETOP
 int crypto_sign(uint8_t *sm, size_t *smlen, const uint8_t *m, size_t mlen,
                 const uint8_t *ctx, size_t ctxlen, const uint8_t *sk);
 
-#define crypto_sign_verify_internal DILITHIUM_NAMESPACE(verify_internal)
+#define crypto_sign_verify_internal MLD_NAMESPACE(verify_internal)
 int crypto_sign_verify_internal(const uint8_t *sig, size_t siglen,
                                 const uint8_t *m, size_t mlen,
                                 const uint8_t *pre, size_t prelen,
                                 const uint8_t *pk);
 
-#define crypto_sign_verify DILITHIUM_NAMESPACE(verify)
+#define crypto_sign_verify MLD_NAMESPACE(verify)
 int crypto_sign_verify(const uint8_t *sig, size_t siglen, const uint8_t *m,
                        size_t mlen, const uint8_t *ctx, size_t ctxlen,
                        const uint8_t *pk);
 
-#define crypto_sign_open DILITHIUM_NAMESPACE(open)
+#define crypto_sign_open MLD_NAMESPACE(open)
 int crypto_sign_open(uint8_t *m, size_t *mlen, const uint8_t *sm, size_t smlen,
                      const uint8_t *ctx, size_t ctxlen, const uint8_t *pk);
 
