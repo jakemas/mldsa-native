@@ -531,11 +531,11 @@ DEFINES += -DCBMC=1
 DEFINES += -DCBMC_OBJECT_BITS=$(CBMC_OBJECT_BITS)
 DEFINES += -DCBMC_MAX_OBJECT_SIZE="(SIZE_MAX>>(CBMC_OBJECT_BITS+1))"
 
-ifndef DILITHIUM_MODE
-    $(error DILITHIUM_MODE not set)
+ifndef MLD_MODE
+    $(error MLD_MODE not set)
 endif
 
-DEFINES += -DDILITHIUM_MODE=$(DILITHIUM_MODE)
+DEFINES += -DMLD_MODE=$(MLD_MODE)
 # Give visibility to all static functions
 DEFINES += -Dstatic=
 

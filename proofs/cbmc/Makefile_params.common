@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
-ifndef DILITHIUM_MODE
-       $(warning DILITHIUM_MODE not set -- defaulting to DILITHIUM_MODE=3)
+ifndef MLD_MODE
+       $(warning MLD_MODE not set -- defaulting to MLD_MODE=3)
 endif
 
-DILITHIUM_MODE ?= 3
+MLD_MODE ?= 3
 
-ifeq ($(DILITHIUM_MODE),2)
-     MLS_NAMESPACE=pqcrystals_dilithium2_ref_
-else ifeq ($(DILITHIUM_MODE),3)
-     MLS_NAMESPACE=pqcrystals_dilithium3_ref_
-else ifeq ($(DILITHIUM_MODE),5)
-     MLS_NAMESPACE=pqcrystals_dilithium5_ref_
+ifeq ($(MLD_MODE),2)
+     MLS_NAMESPACE=MLD_44_ref_
+else ifeq ($(MLD_MODE),3)
+     MLS_NAMESPACE=MLD_65_ref_
+else ifeq ($(MLD_MODE),5)
+     MLS_NAMESPACE=MLD_87_ref_
 else
-     $(error Invalid value of DILITHIUM_MODE)
+     $(error Invalid value of MLD_MODE)
 endif

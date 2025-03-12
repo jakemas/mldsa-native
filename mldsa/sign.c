@@ -247,7 +247,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen, const uint8_t *m,
   for (i = 0; i < ctxlen; i++)
     pre[2 + i] = ctx[i];
 
-#ifdef DILITHIUM_RANDOMIZED_SIGNING
+#ifdef MLD_RANDOMIZED_SIGNING
   randombytes(rnd, RNDBYTES);
 #else
   for (i = 0; i < RNDBYTES; i++)
