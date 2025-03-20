@@ -108,6 +108,7 @@ int crypto_sign_keypair(uint8_t *pk, uint8_t *sk)
  *              - size_t prelen:  length of prefix string
  *              - uint8_t *rnd:   pointer to random seed
  *              - uint8_t *sk:    pointer to bit-packed secret key
+ *              - int externalmu: indicates input message m is processed as mu
  *
  * Returns 0 (success)
  **************************************************/
@@ -115,7 +116,7 @@ int crypto_sign_signature_internal(uint8_t *sig, size_t *siglen,
                                    const uint8_t *m, size_t mlen,
                                    const uint8_t *pre, size_t prelen,
                                    const uint8_t rnd[RNDBYTES],
-                                   const uint8_t *sk)
+                                   const uint8_t *sk, int externalmu)
 {
   unsigned int n;
   uint8_t seedbuf[2 * SEEDBYTES + TRBYTES + 2 * CRHBYTES];
@@ -133,13 +134,21 @@ int crypto_sign_signature_internal(uint8_t *sig, size_t *siglen,
   rhoprime = mu + CRHBYTES;
   unpack_sk(rho, tr, key, &t0, &s1, &s2, sk);
 
-  /* Compute mu = CRH(tr, pre, msg) */
-  shake256_init(&state);
-  shake256_absorb(&state, tr, TRBYTES);
-  shake256_absorb(&state, pre, prelen);
-  shake256_absorb(&state, m, mlen);
-  shake256_finalize(&state);
-  shake256_squeeze(mu, CRHBYTES, &state);
+  if (!externalmu)
+  {
+    /* Compute mu = CRH(tr, pre, msg) */
+    shake256_init(&state);
+    shake256_absorb(&state, tr, TRBYTES);
+    shake256_absorb(&state, pre, prelen);
+    shake256_absorb(&state, m, mlen);
+    shake256_finalize(&state);
+    shake256_squeeze(mu, CRHBYTES, &state);
+  }
+  else
+  {
+    /* mu has been provided directly */
+    memcpy(mu, m, CRHBYTES);
+  }
 
   /* Compute rhoprime = CRH(key, rnd, mu) */
   shake256_init(&state);
@@ -217,7 +226,8 @@ rej:
 /*************************************************
  * Name:        crypto_sign_signature
  *
- * Description: Computes signature.
+ * Description: FIPS 204: Algorithm 2 ML-DSA.Sign.
+ *              Computes signature.
  *
  * Arguments:   - uint8_t *sig:   pointer to output signature (of length
  *CRYPTO_BYTES)
@@ -254,8 +264,39 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen, const uint8_t *m,
     rnd[i] = 0;
 #endif
 
-  crypto_sign_signature_internal(sig, siglen, m, mlen, pre, 2 + ctxlen, rnd,
-                                 sk);
+  crypto_sign_signature_internal(sig, siglen, m, mlen, pre, 2 + ctxlen, rnd, sk,
+                                 0);
+  return 0;
+}
+
+/*************************************************
+ * Name:        crypto_sign_signature_extmu
+ *
+ * Description:  FIPS 204: Algorithm 2 ML-DSA.Sign external mu variant.
+ *               Computes signature.
+ *
+ * Arguments:   - uint8_t *sig:   pointer to output signature (of length
+ *CRYPTO_BYTES)
+ *              - size_t *siglen: pointer to output length of signature
+ *              - uint8_t mu:     input mu to be signed of size CRHBYTES
+ *              - uint8_t *sk:    pointer to bit-packed secret key
+ *
+ * Returns 0 (success) or -1 (context string too long)
+ **************************************************/
+int crypto_sign_signature_extmu(uint8_t *sig, size_t *siglen,
+                                const uint8_t mu[CRHBYTES], const uint8_t *sk)
+{
+  uint8_t rnd[RNDBYTES];
+
+#ifdef DILITHIUM_RANDOMIZED_SIGNING
+  randombytes(rnd, RNDBYTES);
+#else
+  size_t i;
+  for (i = 0; i < RNDBYTES; i++)
+    rnd[i] = 0;
+#endif
+
+  crypto_sign_signature_internal(sig, siglen, mu, 0, NULL, 0, rnd, sk, 1);
   return 0;
 }
 
@@ -294,8 +335,8 @@ int crypto_sign(uint8_t *sm, size_t *smlen, const uint8_t *m, size_t mlen,
 /*************************************************
  * Name:        crypto_sign_verify_internal
  *
- * Description: Verifies signature. Internal API.
- *
+ * Description: FIPS 204: Algorithm 8 ML-DSA.Verify_internal.
+ *              Verifies signature. Internal API.
  * Arguments:   - uint8_t *m: pointer to input signature
  *              - size_t siglen: length of signature
  *              - const uint8_t *m: pointer to message
@@ -303,13 +344,14 @@ int crypto_sign(uint8_t *sm, size_t *smlen, const uint8_t *m, size_t mlen,
  *              - const uint8_t *pre: pointer to prefix string
  *              - size_t prelen: length of prefix string
  *              - const uint8_t *pk: pointer to bit-packed public key
+ *               - int externalmu: indicates input message m is processed as mu
  *
  * Returns 0 if signature could be verified correctly and -1 otherwise
  **************************************************/
 int crypto_sign_verify_internal(const uint8_t *sig, size_t siglen,
                                 const uint8_t *m, size_t mlen,
                                 const uint8_t *pre, size_t prelen,
-                                const uint8_t *pk)
+                                const uint8_t *pk, int externalmu)
 {
   unsigned int i;
   uint8_t buf[K * POLYW1_PACKEDBYTES];
@@ -331,14 +373,22 @@ int crypto_sign_verify_internal(const uint8_t *sig, size_t siglen,
   if (polyvecl_chknorm(&z, GAMMA1 - BETA))
     return -1;
 
-  /* Compute CRH(H(rho, t1), pre, msg) */
-  shake256(mu, TRBYTES, pk, CRYPTO_PUBLICKEYBYTES);
-  shake256_init(&state);
-  shake256_absorb(&state, mu, TRBYTES);
-  shake256_absorb(&state, pre, prelen);
-  shake256_absorb(&state, m, mlen);
-  shake256_finalize(&state);
-  shake256_squeeze(mu, CRHBYTES, &state);
+  if (!externalmu)
+  {
+    /* Compute CRH(H(rho, t1), pre, msg) */
+    shake256(mu, TRBYTES, pk, CRYPTO_PUBLICKEYBYTES);
+    shake256_init(&state);
+    shake256_absorb(&state, mu, TRBYTES);
+    shake256_absorb(&state, pre, prelen);
+    shake256_absorb(&state, m, mlen);
+    shake256_finalize(&state);
+    shake256_squeeze(mu, CRHBYTES, &state);
+  }
+  else
+  {
+    /* mu has been provided directly */
+    memcpy(mu, m, CRHBYTES);
+  }
 
   /* Matrix-vector multiplication; compute Az - c2^dt1 */
   poly_challenge(&cp, c);
@@ -377,7 +427,8 @@ int crypto_sign_verify_internal(const uint8_t *sig, size_t siglen,
 /*************************************************
  * Name:        crypto_sign_verify
  *
- * Description: Verifies signature.
+ * Description: FIPS 204: Algorithm 3 ML-DSA.Verify.
+ *              Verifies signature.
  *
  * Arguments:   - uint8_t *m: pointer to input signature
  *              - size_t siglen: length of signature
@@ -404,7 +455,27 @@ int crypto_sign_verify(const uint8_t *sig, size_t siglen, const uint8_t *m,
   for (i = 0; i < ctxlen; i++)
     pre[2 + i] = ctx[i];
 
-  return crypto_sign_verify_internal(sig, siglen, m, mlen, pre, 2 + ctxlen, pk);
+  return crypto_sign_verify_internal(sig, siglen, m, mlen, pre, 2 + ctxlen, pk,
+                                     0);
+}
+
+/*************************************************
+ * Name:        crypto_sign_verify_extmu
+ *
+ * Description: FIPS 204: Algorithm 3 ML-DSA.Verify external mu variant.
+ *              Verifies signature.
+ *
+ * Arguments:   - uint8_t *m: pointer to input signature
+ *              - size_t siglen: length of signature
+ *              - const uint8_t mu: input mu of size CRHBYTES
+ *              - const uint8_t *pk: pointer to bit-packed public key
+ *
+ * Returns 0 if signature could be verified correctly and -1 otherwise
+ **************************************************/
+int crypto_sign_verify_extmu(const uint8_t *sig, size_t siglen,
+                             const uint8_t mu[CRHBYTES], const uint8_t *pk)
+{
+  return crypto_sign_verify_internal(sig, siglen, mu, 0, NULL, 0, pk, 1);
 }
 
 /*************************************************

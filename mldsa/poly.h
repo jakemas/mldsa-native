@@ -74,8 +74,7 @@ void polyeta_pack(uint8_t *r, const poly *a)
 __contract__(
   requires(memory_no_alias(r, POLYETA_PACKEDBYTES))
   requires(memory_no_alias(a, sizeof(poly)))
-  requires(forall(k0, 0, N, a->coeffs[k0] <= ETA))
-  requires(forall(k1, 0, N, a->coeffs[k1] >= -ETA))
+  requires(array_abs_bound(a->coeffs, 0, N, ETA))
   assigns(object_whole(r))
 );
 

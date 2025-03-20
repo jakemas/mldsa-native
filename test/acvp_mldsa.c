@@ -147,7 +147,7 @@ static void acvp_mldsa_sigGen_AFT(const unsigned char *message, size_t mlen,
   memcpy(pre + 2, context, ctxlen);
 
   CHECK(crypto_sign_signature_internal(sig, &siglen, message, mlen, pre,
-                                       ctxlen + 2, rnd, sk) == 0);
+                                       ctxlen + 2, rnd, sk, 0) == 0);
   print_hex("signature", sig, sizeof(sig));
 }
 

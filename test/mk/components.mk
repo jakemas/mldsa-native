@@ -3,7 +3,7 @@
 FIPS202_SRCS = $(wildcard mldsa/fips202/*.c)
 SOURCES += $(wildcard mldsa/*.c)
 
-ALL_TESTS = test_mldsa acvp_mldsa gen_NISTKAT gen_KAT
+ALL_TESTS = test_mldsa acvp_mldsa bench_mldsa bench_components_mldsa gen_NISTKAT gen_KAT
 NON_NIST_TESTS = $(filter-out gen_NISTKAT,$(ALL_TESTS))
 
 MLDSA44_DIR = $(BUILD_DIR)/mldsa44

@@ -8,8 +8,12 @@
 	run_func_44 run_kat_44 run_nistkat_44 \
 	run_func_65 run_kat_65 run_nistkat_65 \
 	run_func_87 run_kat_87 run_nistkat_87 \
+	bench_44 bench_65 bench_87 bench \
+	run_bench_44 run_bench_65 run_bench_87 run_bench \
+	bench_components_44 bench_components_65 bench_components_87 bench_components \
+	run_bench_components_44 run_bench_components_65 run_bench_components_87 run_bench_components \
 	build test all \
-	clean quickcheck
+	clean quickcheck check-defined-CYCLES
 
 .DEFAULT_GOAL := build
 all: build
@@ -89,6 +93,54 @@ acvp_87: $(MLDSA87_DIR)/bin/acvp_mldsa87
 acvp: acvp_44 acvp_65 acvp_87
 
 lib: $(BUILD_DIR)/libmldsa.a $(BUILD_DIR)/libmldsa44.a $(BUILD_DIR)/libmldsa65.a $(BUILD_DIR)/libmldsa87.a
+
+# Enforce setting CYCLES make variable when
+# building benchmarking binaries
+check_defined = $(if $(value $1),, $(error $2))
+check-defined-CYCLES:
+	@:$(call check_defined,CYCLES,CYCLES undefined. Benchmarking requires setting one of NO PMU PERF MAC)
+
+bench_44: check-defined-CYCLES \
+	$(MLDSA44_DIR)/bin/bench_mldsa44
+bench_65: check-defined-CYCLES \
+	$(MLDSA65_DIR)/bin/bench_mldsa65
+bench_87: check-defined-CYCLES \
+	$(MLDSA87_DIR)/bin/bench_mldsa87
+bench: bench_44 bench_65 bench_87
+
+run_bench_44: bench_44
+	$(W) $(MLDSA44_DIR)/bin/bench_mldsa44
+run_bench_65: bench_65
+	$(W) $(MLDSA65_DIR)/bin/bench_mldsa65
+run_bench_87: bench_87
+	$(W) $(MLDSA87_DIR)/bin/bench_mldsa87
+
+# Use .WAIT to prevent parallel execution when -j is passed
+run_bench: \
+	run_bench_44 .WAIT\
+	run_bench_65 .WAIT\
+	run_bench_87
+
+bench_components_44: check-defined-CYCLES \
+	$(MLDSA44_DIR)/bin/bench_components_mldsa44
+bench_components_65: check-defined-CYCLES \
+	$(MLDSA65_DIR)/bin/bench_components_mldsa65
+bench_components_87: check-defined-CYCLES \
+	$(MLDSA87_DIR)/bin/bench_components_mldsa87
+bench_components: bench_components_44 bench_components_65 bench_components_87
+
+run_bench_components_44: bench_components_44
+	$(W) $(MLDSA44_DIR)/bin/bench_components_mldsa44
+run_bench_components_65: bench_components_65
+	$(W) $(MLDSA65_DIR)/bin/bench_components_mldsa65
+run_bench_components_87: bench_components_87
+	$(W) $(MLDSA87_DIR)/bin/bench_components_mldsa87
+
+# Use .WAIT to prevent parallel execution when -j is passed
+run_bench_components: \
+	run_bench_components_44 .WAIT\
+	run_bench_components_65 .WAIT\
+	run_bench_components_87
 
 clean:
 	-$(RM) -rf *.gcno *.gcda *.lcov *.o *.so

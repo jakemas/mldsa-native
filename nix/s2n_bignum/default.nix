@@ -2,17 +2,17 @@
 { stdenv, fetchFromGitHub, writeText, ... }:
 stdenv.mkDerivation rec {
   pname = "s2n_bignum";
-  version = "90cb5e35a823efee15cde72f0237af39a9bf7371";
+  version = "7c018f70667310c96ac5d6c27468104117bd51c0";
   src = fetchFromGitHub {
     owner = "jargh";
     repo = "s2n-bignum-dev";
     rev = "${version}";
-    hash = "sha256-6uDvLG04h8IKYln612wG/aXPsCB9k8Zsh/cE2Y980tQ=";
+    hash = "sha256-/Iyz2mnxGSbmte9lT1JbY4WcBmWWrc7tUpZ0HfAUD+4";
   };
   setupHook = writeText "setup-hook.sh" ''
     export S2N_BIGNUM_DIR="$1"
   '';
-  patches = [ ./0001-fix-script-path.patch ];
+  patches = [ ];
   dontBuild = true;
   installPhase = ''
     mkdir -p $out
