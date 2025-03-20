@@ -7,11 +7,11 @@ endif
 MLD_MODE ?= 3
 
 ifeq ($(MLD_MODE),2)
-     MLS_NAMESPACE=MLD_44_ref_
+     MLD_NAMESPACE=MLD_44_ref_
 else ifeq ($(MLD_MODE),3)
-     MLS_NAMESPACE=MLD_65_ref_
+     MLD_NAMESPACE=MLD_65_ref_
 else ifeq ($(MLD_MODE),5)
-     MLS_NAMESPACE=MLD_87_ref_
+     MLD_NAMESPACE=MLD_87_ref_
 else
      $(error Invalid value of MLD_MODE)
 endif
