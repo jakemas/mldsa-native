@@ -161,6 +161,14 @@ void polyveck_reduce(polyveck *v)
   unsigned int i;
 
   for (i = 0; i < MLDSA_K; ++i)
+  __loop__(
+    assigns(i)
+    invariant(i <= MLDSA_K)
+    invariant(forall(j, 0, i,
+      array_bound(v->vec[j].coeffs, 0, MLDSA_N, -REDUCE_RANGE_MAX, REDUCE_RANGE_MAX)))
+    invariant(forall(j, i, MLDSA_K, forall(k, 0, MLDSA_N,
+                     v->vec[j].coeffs[k] <= REDUCE_DOMAIN_MAX)))
+)
   {
     poly_reduce(&v->vec[i]);
   }

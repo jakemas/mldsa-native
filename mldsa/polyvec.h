@@ -109,7 +109,15 @@ void polyveck_uniform_eta(polyveck *v, const uint8_t seed[MLDSA_CRHBYTES],
  *
  * Arguments:   - polyveck *v: pointer to input/output vector
  **************************************************/
-void polyveck_reduce(polyveck *v);
+void polyveck_reduce(polyveck *v)
+__contract__(
+  requires(memory_no_alias(v, sizeof(polyveck)))
+  requires(forall(j0, 0, MLDSA_K,
+    forall(k0, 0, MLDSA_N, v->vec[j0].coeffs[k0] <= REDUCE_DOMAIN_MAX)))
+    assigns(object_whole(v))
+    ensures(forall(j, 0, MLDSA_K, array_bound(v->vec[j].coeffs, 0, MLDSA_N,
+                   -REDUCE_RANGE_MAX, REDUCE_RANGE_MAX)))
+  );
 #define polyveck_caddq MLD_NAMESPACE(polyveck_caddq)
 /*************************************************
  * Name:        polyveck_caddq
