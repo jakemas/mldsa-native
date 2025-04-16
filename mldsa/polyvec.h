@@ -25,7 +25,15 @@ void polyvecl_uniform_gamma1(polyvecl *v, const uint8_t seed[MLDSA_CRHBYTES],
                              uint16_t nonce);
 
 #define polyvecl_reduce MLD_NAMESPACE(polyvecl_reduce)
-void polyvecl_reduce(polyvecl *v);
+void polyvecl_reduce(polyvecl *v)
+__contract__(
+  requires(memory_no_alias(v, sizeof(polyvecl)))
+  requires(forall(j0, 0, MLDSA_L,
+    forall(k0, 0, MLDSA_N, v->vec[j0].coeffs[k0] <= REDUCE_DOMAIN_MAX)))
+    assigns(object_whole(v))
+    ensures(forall(j, 0, MLDSA_L, array_bound(v->vec[j].coeffs, 0, MLDSA_N,
+                   -REDUCE_RANGE_MAX, REDUCE_RANGE_MAX)))
+);
 
 #define polyvecl_add MLD_NAMESPACE(polyvecl_add)
 /*************************************************
