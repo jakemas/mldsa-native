@@ -227,7 +227,7 @@ source code and documentation.
   - [dev/x86_64/src/poly_use_hint_88_avx2.c](dev/x86_64/src/poly_use_hint_88_avx2.c)
   - [dev/x86_64/src/polyz_unpack_17_avx2.c](dev/x86_64/src/polyz_unpack_17_avx2.c)
   - [dev/x86_64/src/polyz_unpack_19_avx2.c](dev/x86_64/src/polyz_unpack_19_avx2.c)
-  - [dev/x86_64/src/rej_uniform_avx2.c](dev/x86_64/src/rej_uniform_avx2.c)
+  - [dev/x86_64/src/rej_uniform_avx2.S](dev/x86_64/src/rej_uniform_avx2.S)
   - [dev/x86_64/src/rej_uniform_eta2_avx2.c](dev/x86_64/src/rej_uniform_eta2_avx2.c)
   - [dev/x86_64/src/rej_uniform_eta4_avx2.c](dev/x86_64/src/rej_uniform_eta4_avx2.c)
   - [mldsa/src/native/x86_64/src/intt.S](mldsa/src/native/x86_64/src/intt.S)
@@ -245,11 +245,12 @@ source code and documentation.
   - [mldsa/src/native/x86_64/src/poly_use_hint_88_avx2.c](mldsa/src/native/x86_64/src/poly_use_hint_88_avx2.c)
   - [mldsa/src/native/x86_64/src/polyz_unpack_17_avx2.c](mldsa/src/native/x86_64/src/polyz_unpack_17_avx2.c)
   - [mldsa/src/native/x86_64/src/polyz_unpack_19_avx2.c](mldsa/src/native/x86_64/src/polyz_unpack_19_avx2.c)
-  - [mldsa/src/native/x86_64/src/rej_uniform_avx2.c](mldsa/src/native/x86_64/src/rej_uniform_avx2.c)
+  - [mldsa/src/native/x86_64/src/rej_uniform_avx2.S](mldsa/src/native/x86_64/src/rej_uniform_avx2.S)
   - [mldsa/src/native/x86_64/src/rej_uniform_eta2_avx2.c](mldsa/src/native/x86_64/src/rej_uniform_eta2_avx2.c)
   - [mldsa/src/native/x86_64/src/rej_uniform_eta4_avx2.c](mldsa/src/native/x86_64/src/rej_uniform_eta4_avx2.c)
   - [proofs/hol_light/x86_64/mldsa/mldsa_intt.S](proofs/hol_light/x86_64/mldsa/mldsa_intt.S)
   - [proofs/hol_light/x86_64/mldsa/mldsa_ntt.S](proofs/hol_light/x86_64/mldsa/mldsa_ntt.S)
+  - [proofs/hol_light/x86_64/mldsa/mldsa_rej_uniform.S](proofs/hol_light/x86_64/mldsa/mldsa_rej_uniform.S)
 
 ### `Round3_Spec`
 

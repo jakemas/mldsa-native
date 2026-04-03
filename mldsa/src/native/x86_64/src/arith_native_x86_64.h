@@ -65,7 +65,8 @@ void mld_nttunpack_avx2(int32_t *r);
 #define mld_rej_uniform_avx2 MLD_NAMESPACE(mld_rej_uniform_avx2)
 MLD_MUST_CHECK_RETURN_VALUE
 unsigned mld_rej_uniform_avx2(int32_t *r,
-                              const uint8_t buf[MLD_AVX2_REJ_UNIFORM_BUFLEN]);
+                              const uint8_t buf[MLD_AVX2_REJ_UNIFORM_BUFLEN],
+                              const uint8_t *table);
 
 #define mld_rej_uniform_eta2_avx2 MLD_NAMESPACE(mld_rej_uniform_eta2_avx2)
 MLD_MUST_CHECK_RETURN_VALUE

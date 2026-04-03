@@ -80,7 +80,8 @@ static MLD_INLINE int mld_rej_uniform_native(int32_t *r, unsigned len,
   }
 
   /* Safety: outlen is at most MLDSA_N and, hence, this cast is safe. */
-  return (int)mld_rej_uniform_avx2(r, buf);
+  return (int)mld_rej_uniform_avx2(r, buf,
+                                   (const uint8_t *)mld_rej_uniform_table);
 }
 
 #if defined(MLD_CONFIG_MULTILEVEL_WITH_SHARED) || MLDSA_ETA == 2
