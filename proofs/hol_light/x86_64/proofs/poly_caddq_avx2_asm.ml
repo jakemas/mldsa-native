@@ -17,6 +17,7 @@ needs "mldsa_native/x86_64/proofs/mldsa_utils.ml";;
  ****)
 
 let mldsa_caddq_mc = define_assert_from_elf "mldsa_caddq_mc" "x86_64/mldsa/poly_caddq_avx2_asm.o"
+(*** BYTECODE START ***)
 [
   0xf3; 0x0f; 0x1e; 0xfa;  (* ENDBR64 *)
   0xc5; 0xe9; 0xef; 0xd2;  (* VPXOR (%_% xmm2) (%_% xmm2) (%_% xmm2) *)
@@ -248,6 +249,7 @@ let mldsa_caddq_mc = define_assert_from_elf "mldsa_caddq_mc" "x86_64/mldsa/poly_
                            (* VMOVDQA (Memop Word256 (%% (rdi,992))) (%_% ymm5) *)
   0xc3                     (* RET *)
 ];;
+(*** BYTECODE END ***)
 
 let mldsa_caddq_tmc = define_trimmed "mldsa_caddq_tmc" mldsa_caddq_mc;;
 let MLDSA_CADDQ_TMC_EXEC = X86_MK_CORE_EXEC_RULE mldsa_caddq_tmc;;
