@@ -4,12 +4,16 @@
 { stdenv, fetchFromGitHub, writeText, ... }:
 stdenv.mkDerivation rec {
   pname = "s2n_bignum";
-  version = "ccef24569ed5c41f4e7fcb19965bf48eff3fdaa0";
+  # Pinned to https://github.com/awslabs/s2n-bignum/pull/410
+  # (jakemas:add-vpabsd-vptest) which adds VPABSD and VPTEST instruction
+  # models required by the poly_chknorm_avx2_asm HOL-Light proof.
+  # Once that PR merges, this can move back to upstream awslabs/s2n-bignum.
+  version = "4414a110250cea1c02ffe71d031c1254ba788ec0";
   src = fetchFromGitHub {
-    owner = "awslabs";
+    owner = "jakemas";
     repo = "s2n-bignum";
     rev = "${version}";
-    hash = "sha256-1KHAmHtBKMO+8Ea+1TTF6adKW3XKRmfcJC1vNZ/guRA=";
+    hash = "sha256-dbgC4d+LT3Tbrz2Q/QtT5QFu2B/N6dNghPKwki1IgfQ=";
   };
   setupHook = writeText "setup-hook.sh" ''
     export S2N_BIGNUM_DIR="$1"
