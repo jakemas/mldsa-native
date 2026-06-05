@@ -2011,3 +2011,50 @@ let REJ_SAMPLE_APPEND = prove
  (`!l1 l2. REJ_SAMPLE(APPEND l1 l2) =
            APPEND (REJ_SAMPLE l1) (REJ_SAMPLE l2)`,
   REWRITE_TAC[REJ_SAMPLE; MAP_APPEND; FILTER_APPEND]);;
+
+(* ========================================================================= *)
+(* ML-DSA rejection sampling specification, eta variants.                    *)
+(*                                                                           *)
+(* The top-level spec takes a list of 4-bit nibbles (carried as int16) and   *)
+(* is a plain filter+map -- mirroring REJ_SAMPLE for the q-filter case.      *)
+(*   eta=2: keep nibble n if n < 15, then map to (2 - n MOD 5) :int32        *)
+(*   eta=4: keep nibble n if n <  9, then map to (4 - n)        :int32       *)
+(* The byte->nibble unpacking is done by the caller via NIBBLES_OF_BYTES.    *)
+(* ========================================================================= *)
+
+let NIBBLE_PAIR = define
+  `NIBBLE_PAIR (b:byte) =
+   [word(val b MOD 16):int16; word(val b DIV 16):int16]`;;
+
+let NIBBLES_OF_BYTES = define
+  `NIBBLES_OF_BYTES [] = ([]:(int16)list) /\
+   NIBBLES_OF_BYTES (CONS (b:byte) t) =
+   APPEND (NIBBLE_PAIR b) (NIBBLES_OF_BYTES t)`;;
+
+let NIBBLES_OF_BYTES_APPEND = prove
+ (`!l1 l2. NIBBLES_OF_BYTES(APPEND l1 l2) =
+           APPEND (NIBBLES_OF_BYTES l1) (NIBBLES_OF_BYTES l2)`,
+  LIST_INDUCT_TAC THEN
+  ASM_REWRITE_TAC[NIBBLES_OF_BYTES; APPEND; APPEND_ASSOC]);;
+
+(* Splits each input byte into its low and high 4-bit nibbles, expressed at *)
+(* the natural bitwidth (4 word). The output is twice the length of the     *)
+(* input. Used by callers of REJ_SAMPLE_ETA{2,4} to lift a byte buffer into *)
+(* a nibble list. *)
+let BYTES_TO_NIBBLES = define
+  `BYTES_TO_NIBBLES [] = ([]:(4 word) list) /\
+   BYTES_TO_NIBBLES (CONS (b:byte) t) =
+   APPEND [word(val b MOD 16):4 word; word(val b DIV 16):4 word]
+          (BYTES_TO_NIBBLES t)`;;
+
+let REJ_SAMPLE_ETA2 = define
+  `REJ_SAMPLE_ETA2 (l:(4 word) list) =
+   MAP (\x:4 word.
+          word_sx (word_sub (word 2:4 word)
+                            (word_umod x (word 5:4 word))):int32)
+       (FILTER (\x:4 word. val x < 15) l)`;;
+
+let REJ_SAMPLE_ETA4 = define
+  `REJ_SAMPLE_ETA4 (l:(4 word) list) =
+   MAP (\x:4 word. word_sx (word_sub (word 4:4 word) x):int32)
+       (FILTER (\x:4 word. val x < 9) l)`;;
