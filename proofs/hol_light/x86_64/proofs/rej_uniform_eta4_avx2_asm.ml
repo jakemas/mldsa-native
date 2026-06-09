@@ -2232,6 +2232,41 @@ let VAL_WORD_LE_256_NOT_LT = prove
   MP_TAC(SPECL [`a:num`; `256`] VAL_WORD_LE_NOT_LT) THEN
   ASM_REWRITE_TAC[ARITH_RULE `256 < 2 EXP 32`]);;
 
+(* Loop-guard fall-through bridge: after `cmp $k, %eax` with EAX = word a    *)
+(* and a <= k <= 2^32-1, the `ja` (jump-if-above, unsigned >) is NOT taken.  *)
+(* The x86 model emits the taken-condition as `~(~EQ \/ ZF)` where EQ is the *)
+(* CF-via-int-equality and ZF is the zero test; this lemma proves `~EQ \/ ZF`*)
+(* holds (so the taken-condition is false and execution falls through). Used *)
+(* at all five cmp/ja sites in the SIMD loop body (the two loop-head guards  *)
+(* and the three mid-iteration early-exit checks).                           *)
+let JA_NOT_TAKEN_LE = prove
+ (`!a k:num. a <= k /\ k < 2 EXP 32
+     ==> ~(&(val(word_zx(word a:int32):int32)) - &k =
+           &(val(word_sub (word_zx(word a:int32):int32) (word k:int32)))) \/
+         val(word_sub (word_zx(word a:int32):int32) (word k:int32)) = 0`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  SUBGOAL_THEN `val(word_zx(word a:int32):int32) = a` ASSUME_TAC THENL
+   [REWRITE_TAC[WORD_ZX_TRIVIAL] THEN MATCH_MP_TAC VAL_WORD_EQ THEN
+    REWRITE_TAC[DIMINDEX_32] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(word k:int32) = k` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_32] THEN ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  ASM_CASES_TAC `a = k:num` THEN ASM_REWRITE_TAC[] THENL
+   [DISJ2_TAC THEN REWRITE_TAC[WORD_ZX_TRIVIAL; WORD_SUB_REFL; VAL_WORD_0];
+    DISJ1_TAC THEN
+    SUBGOAL_THEN `a < k` ASSUME_TAC THENL
+     [REPEAT(POP_ASSUM MP_TAC) THEN ARITH_TAC; ALL_TAC] THEN
+    SUBGOAL_THEN `val(word_sub (word_zx(word a:int32):int32) (word k:int32)) =
+                  a + 2 EXP 32 - k` SUBST1_TAC THENL
+     [REWRITE_TAC[VAL_WORD_SUB_CASES; DIMINDEX_32] THEN ASM_REWRITE_TAC[] THEN
+      COND_CASES_TAC THENL
+       [REPEAT(POP_ASSUM MP_TAC) THEN ARITH_TAC; REFL_TAC];
+      ALL_TAC] THEN
+    ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN `&a:int < &k` MP_TAC THENL
+     [REWRITE_TAC[INT_OF_NUM_LT] THEN ASM_REWRITE_TAC[]; ALL_TAC] THEN
+    SPEC_TAC(`a + 2 EXP 32 - k`,`m:num`) THEN INT_ARITH_TAC]);;
+
 (* word_add evaluation when both summands are bounded by 248 (and thus the   *)
 (* sum is also bounded). Used to compute exact RAX value after `add eax, r9d`*)
 (* in sub-iter 1 of the body proof.                                          *)
