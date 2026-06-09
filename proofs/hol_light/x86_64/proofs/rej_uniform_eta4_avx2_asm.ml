@@ -1198,6 +1198,30 @@ let PSHUFB_ACCEPTED_PREFIX_NUM = prove
   MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_8] THEN
   FIRST_ASSUM(MP_TAC o MATCH_MP ACC_IDX_LT_8) THEN ARITH_TAC);;
 
+(* VPMOVSXBD per-lane: the 8 int32 lanes of the sign-extend of an int64 (the *)
+(* low 64 bits of the pshufb result) are word_sx of the 8 input bytes. Same  *)
+(* structural-isolation recipe as PSHUFB_LANE_EXTRACT (word_sx is a fixed    *)
+(* bit-routing, so after isolating each lane WORD_BLAST closes it). Feeds the *)
+(* int32 coefficient list: lane k = word_sx(compacted byte k), and with      *)
+(* WORD_SUB_4_NIBBLE_INT32_AS_SX the compacted (4 - nibble) byte sign-extends *)
+(* to the spec coefficient word_sx(word_sub (word 4) nibble):int32.          *)
+let VPMOVSXBD_LANE_EXTRACT = prove
+ (`!(x:int64).
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (0,32):int32 = word_sx(word_subword x (0,8):byte)) /\
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (32,32):int32 = word_sx(word_subword x (8,8):byte)) /\
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (64,32):int32 = word_sx(word_subword x (16,8):byte)) /\
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (96,32):int32 = word_sx(word_subword x (24,8):byte)) /\
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (128,32):int32 = word_sx(word_subword x (32,8):byte)) /\
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (160,32):int32 = word_sx(word_subword x (40,8):byte)) /\
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (192,32):int32 = word_sx(word_subword x (48,8):byte)) /\
+     (word_subword (usimd8 (\b:byte. word_sx b:int32) x:int256) (224,32):int32 = word_sx(word_subword x (56,8):byte))`,
+  GEN_TAC THEN
+  REWRITE_TAC[usimd8; usimd4; usimd2] THEN
+  SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+           DIMINDEX_8; DIMINDEX_16; DIMINDEX_32; DIMINDEX_64; DIMINDEX_128;
+           DIMINDEX_256; ARITH] THEN
+  REPEAT CONJ_TAC THEN CONV_TAC WORD_BLAST);;
+
 (* VPMOVMSKB on a 64-bit half: pack bit 7 of each of the 8 bytes into  *)
 (* a single byte. This is the eta4 analog of VMOVMSKPS_BYTE_EQ from PR  *)
 (* #1014. Used to express the result of VPMOVMSKB on the lower lane    *)
