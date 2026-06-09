@@ -20,6 +20,7 @@ let () =
 
 needs "s2n_bignum/x86/proofs/base.ml";;
 needs "mldsa_native/common/mldsa_specs.ml";;
+needs "mldsa_native/x86_64/proofs/mldsa_utils.ml";;
 needs "mldsa_native/x86_64/proofs/mldsa_rej_uniform_table.ml";;
 
 (* Reject silent type-variable invention.                                    *)
