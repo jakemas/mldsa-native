@@ -1126,6 +1126,78 @@ let PSHUFB_OUT_BYTE = prove
     DISCH_THEN(MP_TAC o SPEC `k:num`) THEN ASM_REWRITE_TAC[] THEN
     ASM_SIMP_TAC[CTRL_BYTE_TABLE]]);;
 
+(* The 8 low output bytes of the table-driven VPSHUFB, as an explicit list, *)
+(* and its identification with the gather MAP over the table entry.         *)
+let PSHUFB_OUT_LIST = define
+ `PSHUFB_OUT_LIST (g:int128) (m:byte) =
+    [word_subword g (8 * val(EL 0 (TABLE_ENTRY m):byte),8):byte;
+     word_subword g (8 * val(EL 1 (TABLE_ENTRY m):byte),8);
+     word_subword g (8 * val(EL 2 (TABLE_ENTRY m):byte),8);
+     word_subword g (8 * val(EL 3 (TABLE_ENTRY m):byte),8);
+     word_subword g (8 * val(EL 4 (TABLE_ENTRY m):byte),8);
+     word_subword g (8 * val(EL 5 (TABLE_ENTRY m):byte),8);
+     word_subword g (8 * val(EL 6 (TABLE_ENTRY m):byte),8);
+     word_subword g (8 * val(EL 7 (TABLE_ENTRY m):byte),8)]`;;
+
+let PSHUFB_OUT_LIST_AS_MAP = prove
+ (`!g m. PSHUFB_OUT_LIST g m =
+         MAP (\b:byte. word_subword g (8 * val b,8):byte) (TABLE_ENTRY m)`,
+  REPEAT GEN_TAC THEN
+  SUBGOAL_THEN `?a0 a1 a2 a3 a4 a5 a6 a7:byte.
+       TABLE_ENTRY m = [a0;a1;a2;a3;a4;a5;a6;a7]` STRIP_ASSUME_TAC THENL
+   [SUBGOAL_THEN `LENGTH(TABLE_ENTRY m:byte list) = 8` MP_TAC THENL
+     [REWRITE_TAC[TABLE_ENTRY; LENGTH_SUB_LIST] THEN
+      SUBGOAL_THEN `LENGTH(mldsa_rej_uniform_table:byte list) = 2048`
+        (fun th -> REWRITE_TAC[th]) THENL
+       [REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN CONV_TAC NUM_REDUCE_CONV;
+        ALL_TAC] THEN
+      MP_TAC(ISPEC `m:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN ARITH_TAC;
+      ALL_TAC] THEN
+    SPEC_TAC(`TABLE_ENTRY m:byte list`,`l:byte list`) THEN
+    REWRITE_TAC[ARITH_RULE `8 = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC 0)))))))`] THEN
+    REWRITE_TAC[LENGTH_EQ_CONS; LENGTH_EQ_NIL] THEN MESON_TAC[];
+    ASM_REWRITE_TAC[PSHUFB_OUT_LIST; MAP] THEN
+    CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REWRITE_TAC[]]);;
+
+let SUB_LIST_0_MAP = prove
+ (`!(f:A->B) n l. SUB_LIST(0,n) (MAP f l) = MAP f (SUB_LIST(0,n) l)`,
+  GEN_TAC THEN INDUCT_TAC THEN REWRITE_TAC[SUB_LIST_CLAUSES; MAP] THEN
+  LIST_INDUCT_TAC THEN ASM_REWRITE_TAC[SUB_LIST_CLAUSES; MAP]);;
+
+let ACC_IDX_LT_8 = prove
+ (`!m x. MEM x (ACC_IDX m) ==> x < 8`,
+  REWRITE_TAC[ACC_IDX] THEN REPEAT GEN_TAC THEN
+  REWRITE_TAC[MEM_FILTER; MEM] THEN STRIP_TAC THEN ASM_REWRITE_TAC[] THEN ARITH_TAC);;
+
+(* The full abstract pshufb-compaction-correctness statement: the first     *)
+(* popcount(m) = |ACC_IDX m| output bytes of the table-driven VPSHUFB are   *)
+(* exactly the source bytes g at the accepted nibble positions ACC_IDX m,   *)
+(* in order. This closes item (d): combined with the nibble-extraction and  *)
+(* popcount bridges it shows each sub-iter writes the accepted (4-nibble)    *)
+(* values compacted to the front. _NUM form maps over num positions.        *)
+let PSHUFB_ACCEPTED_PREFIX = prove
+ (`!(g:int128) m. m < 256 ==>
+     SUB_LIST(0, LENGTH(ACC_IDX(word m:byte))) (PSHUFB_OUT_LIST g (word m)) =
+     MAP (\b:byte. word_subword g (8 * val b,8):byte)
+         (MAP word (ACC_IDX(word m:byte)):byte list)`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[PSHUFB_OUT_LIST_AS_MAP] THEN
+  REWRITE_TAC[SUB_LIST_0_MAP] THEN
+  AP_TERM_TAC THEN
+  ASM_SIMP_TAC[TABLE_PREFIX_ACC]);;
+
+let PSHUFB_ACCEPTED_PREFIX_NUM = prove
+ (`!(g:int128) m. m < 256 ==>
+     SUB_LIST(0, LENGTH(ACC_IDX(word m:byte))) (PSHUFB_OUT_LIST g (word m)) =
+     MAP (\j:num. word_subword g (8 * j,8):byte) (ACC_IDX(word m:byte))`,
+  REPEAT STRIP_TAC THEN ASM_SIMP_TAC[PSHUFB_ACCEPTED_PREFIX] THEN
+  REWRITE_TAC[GSYM MAP_o; o_DEF] THEN
+  MATCH_MP_TAC MAP_EQ THEN REWRITE_TAC[GSYM ALL_MEM] THEN
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(word x:byte) = x` (fun th -> REWRITE_TAC[th]) THEN
+  MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_8] THEN
+  FIRST_ASSUM(MP_TAC o MATCH_MP ACC_IDX_LT_8) THEN ARITH_TAC);;
+
 (* VPMOVMSKB on a 64-bit half: pack bit 7 of each of the 8 bytes into  *)
 (* a single byte. This is the eta4 analog of VMOVMSKPS_BYTE_EQ from PR  *)
 (* #1014. Used to express the result of VPMOVMSKB on the lower lane    *)
