@@ -506,6 +506,44 @@ let LENGTH_REJ_NIBBLES_ETA4_MONO = prove
   ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN
   REWRITE_TAC[LENGTH_APPEND; LE_ADD]);;
 
+(* General prefix monotonicity of the accepted-nibble count: a shorter      *)
+(* input prefix accepts no more nibbles than a longer one. (niblen is       *)
+(* FILTER of NIBBLES_OF_BYTES, both monotone under list prefix.) Used to    *)
+(* derive the intra-block sub-iter bounds from the binding end-of-block     *)
+(* bound -- the clean-block control-flow argument: the SIMD loop has three  *)
+(* mid-iteration `ja` early-exits (after sub-iters 1,2,3), and a block runs *)
+(* to completion (loops back) exactly when niblen at its END (offset        *)
+(* 16*j+12 covering all but the last sub-iter's stores; the 4th adds no     *)
+(* further guard) stays <= 248; this lemma propagates that bound to the     *)
+(* earlier sub-iter checkpoints so all three mid-iter ja's fall through.    *)
+let NIBLEN_PREFIX_MONO = prove
+ (`!l:byte list a b. a <= b
+     ==> LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,a) l):int16 list) <=
+         LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,b) l):int16 list)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `SUB_LIST(0,b) (l:byte list) =
+                APPEND (SUB_LIST(0,a) l) (SUB_LIST(a,b-a) l)` SUBST1_TAC THENL
+   [MP_TAC(ISPECL [`l:byte list`; `a:num`; `b - a`; `0`] SUB_LIST_SPLIT) THEN
+    ASM_SIMP_TAC[ARITH_RULE `a <= b ==> a + (b - a) = b`; ADD_CLAUSES];
+    REWRITE_TAC[REJ_NIBBLES_ETA4_APPEND; LENGTH_APPEND] THEN ARITH_TAC]);;
+
+(* For a clean block j (entry guard 16*j <= 256 passes and the end-of-block *)
+(* count niblen(16*j+12) <= 248), all three mid-iteration ctr-guards (at    *)
+(* checkpoints 16*j, 16*j+4, 16*j+8) are <= 248 too, so every mid-iter `ja` *)
+(* falls through and the block's four sub-iters all execute -- the loop     *)
+(* then re-tests at the head. Direct consequence of NIBLEN_PREFIX_MONO.     *)
+let CLEAN_BLOCK_BOUNDS = prove
+ (`!inlist:byte list j.
+     16 * j <= 256 /\
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*j+12) inlist):int16 list) <= 248
+     ==> LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*j) inlist):int16 list) <= 248 /\
+         LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*j+4) inlist):int16 list) <= 248 /\
+         LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*j+8) inlist):int16 list) <= 248`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN REPEAT CONJ_TAC THEN
+  TRANS_TAC LE_TRANS
+    `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*j+12) inlist):int16 list)` THEN
+  ASM_REWRITE_TAC[] THEN MATCH_MP_TAC NIBLEN_PREFIX_MONO THEN ARITH_TAC);;
+
 (* Bridge: relate val (word_zx of byte) < 9 to val byte < 9, useful for *)
 (* the popcnt-to-FILTER bridge in each sub-iter.                        *)
 let VAL_WORD_ZX_BYTE_LT_9 = prove
