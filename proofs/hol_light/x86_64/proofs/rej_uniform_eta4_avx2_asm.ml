@@ -1308,6 +1308,59 @@ let LENGTH_MLDSA_REJ_UNIFORM_TABLE = prove
   REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN
   CONV_TAC NUM_REDUCE_CONV);;
 
+(* Byte-digitization of the 16-byte chunk the SIMD loop consumes per       *)
+(* iteration. The `vpmovzxbw (rsi,rcx)` load (rcx = 16*i, rsi = buf) reads  *)
+(* bytes128 at buf + 16*i; this lemma identifies the 16 byte-subwords of    *)
+(* that 128-bit value with SUB_LIST(16*i, 16) inlist, given the buffer      *)
+(* contract read(memory :> bytes(buf,buflen)) = num_of_wordlist inlist.     *)
+(* x86 128-bit analogue of aarch64_utils' SUB_LIST_8_BYTES_FROM_INT64.      *)
+let SUB_LIST_16_BYTES_FROM_INT128 = prove
+ (`!buf:int64 buflen inlist i s.
+    16 * (i + 1) <= buflen /\
+    LENGTH (inlist:byte list) = buflen /\
+    read (memory :> bytes (buf, buflen)) s = num_of_wordlist inlist
+    ==> SUB_LIST (16 * i, 16) inlist =
+        [word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (0,8):byte;
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (8,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (16,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (24,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (32,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (40,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (48,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (56,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (64,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (72,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (80,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (88,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (96,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (104,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (112,8);
+         word_subword (read (memory :> bytes128 (word_add buf (word (16 * i)))) s) (120,8)]`,
+  REPEAT STRIP_TAC THEN
+  ABBREV_TAC
+    `loaded_d = read (memory :> bytes128 (word_add buf (word (16 * i)))) s` THEN
+  CONV_TAC SYM_CONV THEN
+  REWRITE_TAC[LISTS_NUM_OF_WORDLIST_EQ] THEN
+  CONJ_TAC THENL
+   [REWRITE_TAC[LENGTH; LENGTH_SUB_LIST] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  REWRITE_TAC[NUM_OF_WORDLIST_SUB_LIST; DIMINDEX_8] THEN
+  FIRST_X_ASSUM(MP_TAC o AP_TERM
+    `\x. x DIV 2 EXP (8 * 16 * i) MOD 2 EXP (8 * 16)`) THEN
+  CONV_TAC(ONCE_DEPTH_CONV BETA_CONV) THEN
+  REWRITE_TAC[READ_COMPONENT_COMPOSE; READ_BYTES_DIV; READ_BYTES_MOD] THEN
+  SUBGOAL_THEN `MIN (buflen - 16 * i) 16 = 16` SUBST1_TAC THENL
+   [ASM_ARITH_TAC; ALL_TAC] THEN
+  MP_TAC(ISPECL
+    [`word_add buf (word (16 * i)):int64`; `read memory s`]
+    (INST_TYPE[`:128`,`:N`] VAL_READ_WBYTES)) THEN
+  REWRITE_TAC[DIMINDEX_128] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[GSYM BYTES128_WBYTES; GSYM READ_COMPONENT_COMPOSE] THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCH_THEN(SUBST1_TAC o SYM) THEN
+  DISCH_THEN(SUBST1_TAC o SYM) THEN
+  REWRITE_TAC[num_of_wordlist; DIMINDEX_8] THEN
+  CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_BLAST);;
+
 (* VPMOVZXBW byte-extraction: byte 2k of the int256 result = byte k of    *)
 (* the int128 input (byte 2k+1 = 0). Used to extract individual nibble    *)
 (* bytes from the simulator's `read YMM0 sN` after VPMOVZXBW.             *)
