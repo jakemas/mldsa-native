@@ -990,6 +990,49 @@ let TABLE_BYTES_LT_8 = prove
    [REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN CONV_TAC NUM_REDUCE_CONV;
     ASM_REWRITE_TAC[]]);;
 
+(* Full VPSHUFB-gather composition: when every control byte of c:int64 is    *)
+(* < 8 (true for table-sourced controls by TABLE_BYTES_LT_8), the eight low  *)
+(* output bytes of the pshufb gather g at the control byte indices. Combines *)
+(* PSHUFB_LANE_EXTRACT (structural lane isolation) with PSHUFB_GATHER_BYTE   *)
+(* (per-lane gather). Lane-0 specialisation kept as PSHUFB_TABLE_GATHER for  *)
+(* convenience; the indexed PSHUFB_TABLE_GATHER_8 covers all 8 lanes.        *)
+let PSHUFB_TABLE_GATHER = prove
+ (`!(g:int128) (c:int64).
+     (!k. k < 8 ==> val(word_subword c (8*k,8):byte) < 8)
+     ==> word_subword (usimd16
+            (\(i:byte). if bit 7 i then word 0:byte
+                else word_subword g (8 * val(word_subword i (0,4):byte),8))
+            (word_zx (word_zx c:int128):int128):int128) (0,8):byte =
+         word_subword g (8 * val(word_subword c (0,8):byte),8)`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[PSHUFB_LANE_EXTRACT] THEN
+  MATCH_MP_TAC PSHUFB_GATHER_BYTE THEN
+  FIRST_X_ASSUM(MP_TAC o SPEC `0`) THEN
+  REWRITE_TAC[ARITH] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[MULT_CLAUSES]);;
+
+let PSHUFB_TABLE_GATHER_8 = prove
+ (`!(g:int128) (c:int64).
+     (!k. k < 8 ==> val(word_subword c (8*k,8):byte) < 8)
+     ==> (!k. k < 8 ==>
+            word_subword (usimd16
+              (\(i:byte). if bit 7 i then word 0:byte
+                  else word_subword g (8 * val(word_subword i (0,4):byte),8))
+              (word_zx (word_zx c:int128):int128):int128) (8*k,8):byte =
+            word_subword g (8 * val(word_subword c (8*k,8):byte),8))`,
+  GEN_TAC THEN GEN_TAC THEN DISCH_TAC THEN
+  CONV_TAC EXPAND_CASES_CONV THEN
+  REWRITE_TAC[ARITH] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[PSHUFB_LANE_EXTRACT] THEN
+  REPEAT CONJ_TAC THEN MATCH_MP_TAC PSHUFB_GATHER_BYTE THEN
+  ASM_SIMP_TAC[ARITH] THEN
+  FIRST_X_ASSUM(fun th ->
+    MP_TAC(SPEC `0` th) THEN MP_TAC(SPEC `1` th) THEN MP_TAC(SPEC `2` th) THEN
+    MP_TAC(SPEC `3` th) THEN MP_TAC(SPEC `4` th) THEN MP_TAC(SPEC `5` th) THEN
+    MP_TAC(SPEC `6` th) THEN MP_TAC(SPEC `7` th)) THEN
+  CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[MULT_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN ASM_REWRITE_TAC[]);;
+
 (* VPMOVMSKB on a 64-bit half: pack bit 7 of each of the 8 bytes into  *)
 (* a single byte. This is the eta4 analog of VMOVMSKPS_BYTE_EQ from PR  *)
 (* #1014. Used to express the result of VPMOVMSKB on the lower lane    *)
