@@ -939,6 +939,29 @@ let PSHUFB_GATHER_BYTE = prove
     MATCH_MP_TAC MOD_LT THEN UNDISCH_TAC `val(c:byte) < 8` THEN ARITH_TAC;
     REFL_TAC]);;
 
+(* The pshufb control bytes come from the rej_uniform table; every table    *)
+(* byte is < 8 (the table stores 8-element index permutations of {0..7}     *)
+(* with the unused tail zeroed). Hence in the compaction step every pshufb  *)
+(* control lane has its top bit clear and PSHUFB_GATHER_BYTE applies -- the  *)
+(* shuffle never zeroes, it always gathers. Proved via ALL over the literal *)
+(* table (fast: ~2s) then specialised to EL form.                           *)
+let ALL_TABLE_LT_8 = prove
+ (`ALL (\b:byte. val b < 8) mldsa_rej_uniform_table`,
+  REWRITE_TAC[mldsa_rej_uniform_table; ALL] THEN
+  CONV_TAC(DEPTH_CONV WORD_RED_CONV) THEN CONV_TAC NUM_REDUCE_CONV);;
+
+let TABLE_BYTES_LT_8 = prove
+ (`!j. j < 2048 ==> val(EL j (mldsa_rej_uniform_table:byte list)) < 8`,
+  GEN_TAC THEN DISCH_TAC THEN
+  MP_TAC(ISPECL [`\b:byte. val b < 8`; `mldsa_rej_uniform_table:byte list`]
+                ALL_EL) THEN
+  REWRITE_TAC[ALL_TABLE_LT_8] THEN
+  DISCH_THEN(MP_TAC o SPEC `j:num`) THEN REWRITE_TAC[] THEN
+  SUBGOAL_THEN `LENGTH(mldsa_rej_uniform_table:byte list) = 2048`
+    (fun th -> REWRITE_TAC[th]) THENL
+   [REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN CONV_TAC NUM_REDUCE_CONV;
+    ASM_REWRITE_TAC[]]);;
+
 (* VPMOVMSKB on a 64-bit half: pack bit 7 of each of the 8 bytes into  *)
 (* a single byte. This is the eta4 analog of VMOVMSKPS_BYTE_EQ from PR  *)
 (* #1014. Used to express the result of VPMOVMSKB on the lower lane    *)
