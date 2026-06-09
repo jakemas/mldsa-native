@@ -1062,6 +1062,70 @@ let PSHUFB_TABLE_GATHER_8 = prove
   CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[MULT_CLAUSES] THEN
   REPEAT STRIP_TAC THEN ASM_REWRITE_TAC[]);;
 
+(* The vmovq load puts table[m] into an int64 register as                   *)
+(* word(num_of_wordlist(TABLE_ENTRY m)); its k-th byte is EL k (TABLE_ENTRY *)
+(* m). (Inverse of the little-endian num_of_wordlist packing.)              *)
+let CTRL_BYTE_TABLE = prove
+ (`!m k. k < 8
+     ==> word_subword (word(num_of_wordlist(TABLE_ENTRY m)):int64) (8*k,8):byte
+         = EL k (TABLE_ENTRY m)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`TABLE_ENTRY m:byte list`; `k:num`]
+    (INST_TYPE[`:64`,`:KL`; `:8`,`:L`] WORD_SUBWORD_NUM_OF_WORDLIST)) THEN
+  REWRITE_TAC[DIMINDEX_64; DIMINDEX_8] THEN
+  SUBGOAL_THEN `LENGTH(TABLE_ENTRY m:byte list) = 8` SUBST1_TAC THENL
+   [REWRITE_TAC[TABLE_ENTRY; LENGTH_SUB_LIST] THEN
+    SUBGOAL_THEN `LENGTH(mldsa_rej_uniform_table:byte list) = 2048`
+      (fun th -> REWRITE_TAC[th]) THENL
+     [REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN CONV_TAC NUM_REDUCE_CONV;
+      ALL_TAC] THEN
+    MP_TAC(ISPEC `m:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN ARITH_TAC;
+    ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  DISCH_THEN MATCH_MP_TAC THEN ASM_REWRITE_TAC[]);;
+
+(* Every byte of any table entry is < 8 (from TABLE_BYTES_LT_8 via the      *)
+(* SUB_LIST offset arithmetic). So all pshufb control lanes gather.          *)
+let TABLE_ENTRY_BYTES_LT_8 = prove
+ (`!m k. k < 8 ==> val(EL k (TABLE_ENTRY m):byte) < 8`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[TABLE_ENTRY] THEN
+  MP_TAC(ISPECL [`mldsa_rej_uniform_table:byte list`; `k:num`; `8 * val(m:byte)`; `8`]
+    EL_SUB_LIST) THEN
+  ANTS_TAC THENL
+   [ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN `LENGTH(mldsa_rej_uniform_table:byte list) = 2048`
+      (fun th -> REWRITE_TAC[th]) THENL
+     [REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN CONV_TAC NUM_REDUCE_CONV;
+      ALL_TAC] THEN
+    MP_TAC(ISPEC `m:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN ARITH_TAC;
+    DISCH_THEN SUBST1_TAC] THEN
+  MATCH_MP_TAC TABLE_BYTES_LT_8 THEN
+  MP_TAC(ISPEC `m:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN ASM_ARITH_TAC);;
+
+(* Full per-output-byte compaction for a table-driven VPSHUFB control: the  *)
+(* k-th output byte (k<8) is the source byte g at index EL k (TABLE_ENTRY   *)
+(* m). Combines PSHUFB_TABLE_GATHER_8 (gather) + CTRL_BYTE_TABLE (control    *)
+(* byte = table entry) + TABLE_ENTRY_BYTES_LT_8 (< 8 side condition). With   *)
+(* TABLE_PREFIX_ACC, the first popcount(m) of these are exactly g's bytes   *)
+(* at the accepted nibble positions -- i.e. the accepted nibbles compacted. *)
+let PSHUFB_OUT_BYTE = prove
+ (`!(g:int128) (m:byte) k. k < 8
+     ==> word_subword (usimd16
+            (\(i:byte). if bit 7 i then word 0:byte
+                else word_subword g (8 * val(word_subword i (0,4):byte),8))
+            (word_zx (word_zx (word(num_of_wordlist(TABLE_ENTRY m)):int64):int128):int128):int128)
+            (8*k,8):byte =
+         word_subword g (8 * val(EL k (TABLE_ENTRY m):byte), 8)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`g:int128`; `word(num_of_wordlist(TABLE_ENTRY m)):int64`]
+    PSHUFB_TABLE_GATHER_8) THEN
+  ANTS_TAC THENL
+   [REPEAT STRIP_TAC THEN ASM_SIMP_TAC[CTRL_BYTE_TABLE] THEN
+    ASM_SIMP_TAC[TABLE_ENTRY_BYTES_LT_8];
+    DISCH_THEN(MP_TAC o SPEC `k:num`) THEN ASM_REWRITE_TAC[] THEN
+    ASM_SIMP_TAC[CTRL_BYTE_TABLE]]);;
+
 (* VPMOVMSKB on a 64-bit half: pack bit 7 of each of the 8 bytes into  *)
 (* a single byte. This is the eta4 analog of VMOVMSKPS_BYTE_EQ from PR  *)
 (* #1014. Used to express the result of VPMOVMSKB on the lower lane    *)
