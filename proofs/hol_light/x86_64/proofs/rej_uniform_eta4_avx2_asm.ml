@@ -939,6 +939,34 @@ let PSHUFB_GATHER_BYTE = prove
     MATCH_MP_TAC MOD_LT THEN UNDISCH_TAC `val(c:byte) < 8` THEN ARITH_TAC;
     REFL_TAC]);;
 
+(* Per-lane extraction of a VPSHUFB low-128 result. For any byte->byte lane *)
+(* function ff (the f8 selector in x86_VPSHUFB) and a 64-bit control c       *)
+(* lifted to 128 by word_zx, the k-th low output byte (k<8) is              *)
+(* ff(control-byte k). Proved by unfolding usimd16/8/4/2, routing the       *)
+(* word_subword through the nested word_joins with WORD_SUBWORD_JOIN_LOWER/  *)
+(* UPPER (the control side is a fixed bit-routing -> WORD_BLAST), and        *)
+(* collapsing the outer byte-subword via WORD_SUBWORD_TRIVIAL. Composing     *)
+(* this with PSHUFB_GATHER_BYTE (when each control byte < 8) gives the       *)
+(* gather g.byte(c.byte k); with TABLE_BYTES_LT_8 the < 8 side condition is  *)
+(* automatic for table-sourced controls.                                    *)
+let PSHUFB_LANE_EXTRACT = prove
+ (`!(ff:byte->byte) (c:int64).
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (0,8):byte = ff(word_subword c (0,8)) /\
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (8,8):byte = ff(word_subword c (8,8)) /\
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (16,8):byte = ff(word_subword c (16,8)) /\
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (24,8):byte = ff(word_subword c (24,8)) /\
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (32,8):byte = ff(word_subword c (32,8)) /\
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (40,8):byte = ff(word_subword c (40,8)) /\
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (48,8):byte = ff(word_subword c (48,8)) /\
+     word_subword (usimd16 ff (word_zx (word_zx c:int128):int128):int128) (56,8):byte = ff(word_subword c (56,8))`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[usimd16; usimd8; usimd4; usimd2] THEN
+  SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+           DIMINDEX_8; DIMINDEX_16; DIMINDEX_32; DIMINDEX_64; DIMINDEX_128; ARITH] THEN
+  REPEAT CONJ_TAC THEN
+  (SIMP_TAC[WORD_SUBWORD_TRIVIAL; DIMINDEX_8; LE_REFL] THEN
+   AP_TERM_TAC THEN CONV_TAC WORD_BLAST));;
+
 (* The pshufb control bytes come from the rej_uniform table; every table    *)
 (* byte is < 8 (the table stores 8-element index permutations of {0..7}     *)
 (* with the unused tail zeroed). Hence in the compaction step every pshufb  *)
@@ -2626,29 +2654,37 @@ let NIBLEN_BOUND_FROM_WOP = prove
 (* that starts sub-iter 1) -- VALIDATED interactively.                      *)
 (*                                                                           *)
 (* REMAINING work to close BODY_CHEAT (the SIMD semantic core):             *)
-(*  (a) Expose the 16 input bytes SUB_LIST(16*i,16) inlist as the loaded    *)
-(*      ymm0 value. Needs an x86 analogue of aarch64_utils'                 *)
-(*      SUB_LIST_8_BYTES_FROM_INT64 but for a 128-bit vpmovzxbw load        *)
-(*      (16 bytes at offset 16*i), via the buf,272 = num_of_wordlist inlist *)
-(*      contract. The simulator currently leaves ymm0/r8 opaque because     *)
-(*      inlist is abstract -- this digitization is the precondition for     *)
-(*      all the vector reasoning.                                           *)
+(*  (a) [DONE] Expose the 16 input bytes SUB_LIST(16*i,16) inlist as the    *)
+(*      loaded value -- SUB_LIST_16_BYTES_FROM_INT128 (above).              *)
 (*  (b) vpmovzxbw+vpsllw+vpor+vpand computes, per byte b, the int16 lanes   *)
-(*      [b MOD 16; b DIV 16] = NIBBLES_OF_BYTES -- prove ymm0 after instr   *)
-(*      ~8 holds num_of_wordlist(NIBBLES_OF_BYTES(SUB_LIST(16*i,16) inlist)).*)
-(*  (c) vpsubb bound (nibble-9) + vpmovmskb -> r8 mask whose set bits are   *)
-(*      exactly the accepted-nibble positions (val < 9); popcount(low byte) *)
-(*      = LENGTH(FILTER (<9) of that 8-nibble block) -- bridge already       *)
-(*      present as POPCNT_EQ_LENGTH_FILTER_8 / POPCNT_NIBBLES_4_BYTES_BRIDGE.*)
-(*  (d) per sub-iter: vextracti128/vpsrldq pick the 8-nibble half, vpshufb  *)
-(*      with table[mask byte] compacts accepted nibbles to the front,       *)
-(*      vpmovsxbd sign-extends to 8 int32, vmovdqu stores at r[ctr]; ctr    *)
-(*      advances by popcount. Three mid-iter cmp/ja guards discharged by    *)
-(*      JA_NOT_TAKEN_LE exactly as the loop-head guards.                    *)
-(*  (e) compose the 4 sub-iters: outlen after iteration =                   *)
-(*      outlen0 + LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i,16) inlist)),       *)
-(*      matching REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*(i+1))) via            *)
-(*      REJ_NIBBLES_ETA4_APPEND / the STEP lemmas.                          *)
+(*      [b MOD 16; b DIV 16] = NIBBLES_OF_BYTES. Per-byte fact is           *)
+(*      VPSLLW_VPOR_VPAND_INT16_NIBBLES; per-lane extraction is             *)
+(*      VPMOVZXBW_LANE_EXTRACT. Remaining: thread these through the         *)
+(*      simulator's ymm0 after instr ~8.                                    *)
+(*  (c) vpsubb bound (nibble-9) + vpmovmskb -> r8 mask. Building blocks all *)
+(*      proven: VPSUBB_SIGN_BIT_LT_9, VMOVMSKB_BYTE_EQ_64,                  *)
+(*      POPCNT_EQ_LENGTH_FILTER_8, POPCNT_NIBBLES_4_BYTES_BRIDGE.           *)
+(*  (d) per sub-iter pshufb compaction. Building blocks proven:            *)
+(*      - PSHUFB_GATHER_BYTE: control byte < 8 selects that source byte;   *)
+(*      - TABLE_BYTES_LT_8: every table byte < 8, so every control lane    *)
+(*        gathers (never zeroes).                                          *)
+(*      OPEN sub-goal (next): PSHUFB_LOW8_GATHER -- the low 8 output bytes *)
+(*      of usimd16(f8 g)(word_zx c) equal g.byte(c.byte k) for k<8 when    *)
+(*      each c.byte k < 8. BLOCKER: plain WORD_BLAST fails because the     *)
+(*      gather offset 8*val(c.byte k) is DATA-dependent (not a fixed bit   *)
+(*      routing). Fix: first isolate each usimd16 lane structurally to     *)
+(*      `f8 g (word_subword c (8*k,8))` via the usimd16/usimd8/usimd4/     *)
+(*      usimd2 unfold restricted to the CONTROL extraction (a fixed        *)
+(*      routing on c, leaving the opaque `word_subword g (8*..,8)` intact  *)
+(*      on both sides), THEN apply PSHUFB_GATHER_BYTE per lane. Develop in *)
+(*      a scratch file (fast iteration) using WORD_SUBWORD_SUBWORD-style   *)
+(*      composition rather than one WORD_BLAST. Then the table-control     *)
+(*      version composes with the mask<->accepted-positions relation.      *)
+(*  (e) compose the 4 sub-iters (REJ_SAMPLE_ETA4_BYTES_16_AS_4 already     *)
+(*      splits the 16-byte block into the four 4-byte sub-iters): outlen   *)
+(*      after iteration = outlen0 + LENGTH(REJ_NIBBLES_ETA4(SUB_LIST       *)
+(*      (16*i,16) inlist)), matching REJ_SAMPLE_ETA4_BYTES(SUB_LIST        *)
+(*      (0,16*(i+1))) via REJ_NIBBLES_ETA4_APPEND / the STEP lemmas.       *)
 (* ========================================================================= *)
 
 let MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT = prove
