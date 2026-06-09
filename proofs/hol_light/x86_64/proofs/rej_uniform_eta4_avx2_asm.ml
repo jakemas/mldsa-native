@@ -914,6 +914,31 @@ let POPCOUNT_BYTE_BRIDGE = prove
   REWRITE_TAC[FILTER_LT_9_LENGTH_8; WORD_POPCOUNT_BYTE] THEN
   ASM_REWRITE_TAC[]);;
 
+(* Per-byte VPSHUFB gather behavior: a control byte c with c < 8 (top bit  *)
+(* clear, so the byte is selected not zeroed; low nibble = c since c < 8)   *)
+(* selects source byte c. This is the building block for the table-driven   *)
+(* compaction: the rej_uniform table stores accepted-nibble indices < 8 in  *)
+(* each control lane, and this lemma reduces VPSHUFB's f8 selector to a      *)
+(* plain source-byte pick. Matches the f8 in x86_VPSHUFB exactly.           *)
+let PSHUFB_GATHER_BYTE = prove
+ (`!(w:int128) (c:byte). val c < 8
+     ==> (if bit 7 c then word 0:byte
+          else word_subword w (8 * val (word_subword c (0,4):byte),8)) =
+         word_subword w (8 * val c,8)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `~(bit 7 (c:byte))` ASSUME_TAC THENL
+   [REWRITE_TAC[BIT_VAL] THEN
+    SUBGOAL_THEN `val(c:byte) DIV 2 EXP 7 = 0` (fun th -> REWRITE_TAC[th]) THENL
+     [MATCH_MP_TAC DIV_LT THEN UNDISCH_TAC `val(c:byte) < 8` THEN ARITH_TAC;
+      CONV_TAC NUM_REDUCE_CONV];
+    ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `val(word_subword (c:byte) (0,4):byte) = val c` SUBST1_TAC THENL
+   [REWRITE_TAC[VAL_WORD_SUBWORD; DIMINDEX_8] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[DIV_1] THEN
+    MATCH_MP_TAC MOD_LT THEN UNDISCH_TAC `val(c:byte) < 8` THEN ARITH_TAC;
+    REFL_TAC]);;
+
 (* VPMOVMSKB on a 64-bit half: pack bit 7 of each of the 8 bytes into  *)
 (* a single byte. This is the eta4 analog of VMOVMSKPS_BYTE_EQ from PR  *)
 (* #1014. Used to express the result of VPMOVMSKB on the lower lane    *)
