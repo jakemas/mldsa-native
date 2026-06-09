@@ -914,6 +914,35 @@ let POPCOUNT_BYTE_BRIDGE = prove
   REWRITE_TAC[FILTER_LT_9_LENGTH_8; WORD_POPCOUNT_BYTE] THEN
   ASM_REWRITE_TAC[]);;
 
+(* The pshufb shuffle-control table, indexed by 8-bit mask m, and the       *)
+(* accepted-index list of a mask (its set-bit positions, increasing).       *)
+let TABLE_ENTRY = define
+ `TABLE_ENTRY (m:byte) = SUB_LIST(8 * val m, 8) (mldsa_rej_uniform_table:byte list)`;;
+
+let ACC_IDX = define
+ `ACC_IDX (m:byte) = FILTER (\i. bit i m) [0;1;2;3;4;5;6;7]`;;
+
+(* Keystone table-correspondence lemma: for every mask m, the first         *)
+(* |ACC_IDX m| bytes of the table entry table[m] are exactly the accepted   *)
+(* (set-bit) positions of m, in increasing order. This is what makes the    *)
+(* pshufb gather compact the accepted nibbles to the front: gathering the   *)
+(* source vector at these table indices reads precisely the accepted lanes. *)
+(* Proved by exhaustive 256-mask evaluation (~220s): each case evaluates    *)
+(* ACC_IDX(word m) and table[m] concretely and checks the prefix. There is  *)
+(* no closed form for the literal 256x8 table, so the case split is honest. *)
+let TABLE_PREFIX_ACC = prove
+ (`!m. m < 256 ==>
+    SUB_LIST(0, LENGTH(ACC_IDX(word m:byte))) (TABLE_ENTRY(word m)) =
+    MAP word (ACC_IDX(word m:byte)):byte list`,
+  CONV_TAC EXPAND_CASES_CONV THEN
+  REWRITE_TAC[ACC_IDX; TABLE_ENTRY; FILTER] THEN
+  CONV_TAC(DEPTH_CONV WORD_RED_CONV) THEN
+  CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[LENGTH] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[mldsa_rej_uniform_table] THEN
+  CONV_TAC(DEPTH_CONV SUB_LIST_CONV) THEN
+  REWRITE_TAC[MAP] THEN CONV_TAC(DEPTH_CONV WORD_RED_CONV));;
+
 (* Per-byte VPSHUFB gather behavior: a control byte c with c < 8 (top bit  *)
 (* clear, so the byte is selected not zeroed; low nibble = c since c < 8)   *)
 (* selects source byte c. This is the building block for the table-driven   *)
