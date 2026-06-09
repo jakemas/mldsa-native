@@ -2232,31 +2232,50 @@ let VAL_WORD_LE_256_NOT_LT = prove
   MP_TAC(SPECL [`a:num`; `256`] VAL_WORD_LE_NOT_LT) THEN
   ASM_REWRITE_TAC[ARITH_RULE `256 < 2 EXP 32`]);;
 
-(* Loop-guard fall-through bridge: after `cmp $k, %eax` with EAX = word a    *)
-(* and a <= k <= 2^32-1, the `ja` (jump-if-above, unsigned >) is NOT taken.  *)
-(* The x86 model emits the taken-condition as `~(~EQ \/ ZF)` where EQ is the *)
-(* CF-via-int-equality and ZF is the zero test; this lemma proves `~EQ \/ ZF`*)
-(* holds (so the taken-condition is false and execution falls through). Used *)
-(* at all five cmp/ja sites in the SIMD loop body (the two loop-head guards  *)
-(* and the three mid-iteration early-exit checks).                           *)
+(* val(word_zx) narrowing from int64 to int32 for small values. The x86     *)
+(* loop counters live in 64-bit registers (RAX/RCX); the `cmp $imm32, %e_x`  *)
+(* zero-extends the 32-bit view, so the model carries word_zx(word a:int64). *)
+let VAL_WORD_ZX_64_32 = prove
+ (`!a. a < 2 EXP 32 ==> val(word_zx(word a:int64):int32) = a`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[VAL_WORD_ZX_GEN; DIMINDEX_32; VAL_WORD; DIMINDEX_64] THEN
+  SUBGOAL_THEN `a MOD 2 EXP 64 = a` SUBST1_TAC THENL
+   [MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  MATCH_MP_TAC MOD_LT THEN ASM_REWRITE_TAC[]);;
+
+(* Loop-guard fall-through bridge: after `cmp $k, %e_x` with the 64-bit      *)
+(* register holding `word a` (a <= k <= 2^32-1), the `ja` (jump-if-above,    *)
+(* unsigned >) is NOT taken. The x86 model emits the taken-condition as      *)
+(* `~(~EQ \/ ZF)` where EQ is the CF-via-int-equality and ZF the zero test;  *)
+(* this lemma proves `~EQ \/ ZF` holds so the taken-condition is false and   *)
+(* execution falls through. Stated with `word a:int64` (the register width)  *)
+(* and `&`:int (int_of_num) to match the model's flag terms EXACTLY, so      *)
+(* X86_STEPS_TAC resolves the conditional RIP automatically when this lemma  *)
+(* (instantiated for the right a,k) is in the assumptions. Used at all five  *)
+(* cmp/ja sites in the SIMD loop body (the two loop-head guards on ctr<=248  *)
+(* and pos<=256, plus the three mid-iteration early-exit checks).            *)
 let JA_NOT_TAKEN_LE = prove
  (`!a k:num. a <= k /\ k < 2 EXP 32
-     ==> ~(&(val(word_zx(word a:int32):int32)) - &k =
-           &(val(word_sub (word_zx(word a:int32):int32) (word k:int32)))) \/
-         val(word_sub (word_zx(word a:int32):int32) (word k:int32)) = 0`,
+     ==> ~(&(val(word_zx(word a:int64):int32)):int - &k =
+           &(val(word_sub (word_zx(word a:int64):int32) (word k:int32)))) \/
+         val(word_sub (word_zx(word a:int64):int32) (word k:int32)) = 0`,
   REPEAT GEN_TAC THEN STRIP_TAC THEN
-  SUBGOAL_THEN `val(word_zx(word a:int32):int32) = a` ASSUME_TAC THENL
-   [REWRITE_TAC[WORD_ZX_TRIVIAL] THEN MATCH_MP_TAC VAL_WORD_EQ THEN
-    REWRITE_TAC[DIMINDEX_32] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(word_zx(word a:int64):int32) = a` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_ZX_64_32 THEN ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `val(word k:int32) = k` ASSUME_TAC THENL
    [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_32] THEN ASM_ARITH_TAC;
     ALL_TAC] THEN
   ASM_CASES_TAC `a = k:num` THEN ASM_REWRITE_TAC[] THENL
-   [DISJ2_TAC THEN REWRITE_TAC[WORD_ZX_TRIVIAL; WORD_SUB_REFL; VAL_WORD_0];
+   [DISJ2_TAC THEN
+    SUBGOAL_THEN `word_zx(word k:int64):int32 = word k` SUBST1_TAC THENL
+     [REWRITE_TAC[GSYM VAL_EQ] THEN ASM_SIMP_TAC[VAL_WORD_ZX_64_32] THEN
+      CONV_TAC SYM_CONV THEN MATCH_MP_TAC VAL_WORD_EQ THEN
+      REWRITE_TAC[DIMINDEX_32] THEN ASM_REWRITE_TAC[];
+      REWRITE_TAC[WORD_SUB_REFL; VAL_WORD_0]];
     DISJ1_TAC THEN
     SUBGOAL_THEN `a < k` ASSUME_TAC THENL
      [REPEAT(POP_ASSUM MP_TAC) THEN ARITH_TAC; ALL_TAC] THEN
-    SUBGOAL_THEN `val(word_sub (word_zx(word a:int32):int32) (word k:int32)) =
+    SUBGOAL_THEN `val(word_sub (word_zx(word a:int64):int32) (word k:int32)) =
                   a + 2 EXP 32 - k` SUBST1_TAC THENL
      [REWRITE_TAC[VAL_WORD_SUB_CASES; DIMINDEX_32] THEN ASM_REWRITE_TAC[] THEN
       COND_CASES_TAC THENL
@@ -2481,6 +2500,27 @@ let NIBLEN_BOUND_FROM_WOP = prove
 (*  - RAX_BOUND_AFTER_POPCNT_ADD_DIRECT to convert RAX to canonical form;   *)
 (*  - sub-iter pattern repeated 4x (vextracti/vpsrldq + vpshufb + vmovdqu); *)
 (*  - composition of 4 sub-iters into REJ_SAMPLE_ETA4_BYTES SUB_LIST step.  *)
+(*                                                                           *)
+(* VALIDATED loop-guard prologue (proven interactively, ready to inline).    *)
+(* Lands at RIP = pc + 79 (the vpmovzxbw that starts the SIMD body), with    *)
+(* RAX = word outlen0, RCX = word(16*i), memory contracts intact:            *)
+(*   REPEAT GEN_TAC THEN STRIP_TAC THEN                                      *)
+(*   ABBREV_TAC `outlist0 = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist)`  *)
+(*   ABBREV_TAC `outlen0 = LENGTH(outlist0:int32 list)` THEN                 *)
+(*   SUBGOAL outlen0 <= 248  (EXPAND + REJ_SAMPLE_ETA4_BYTES;LENGTH_MAP) THEN*)
+(*   ENSURES_INIT_TAC "s0" THEN                                             *)
+(*   RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `LENGTH outlist0 = outlen0`]) THEN  *)
+(*   split the RAX/RCX/mem conjunct into separate assumptions; THEN         *)
+(*   MP_TAC(SPECL [`outlen0`;`248`] JA_NOT_TAKEN_LE) + ANTS, and            *)
+(*   MP_TAC(SPECL [`16*i`;`256`] JA_NOT_TAKEN_LE) + ANTS, both DISCH_TAC.   *)
+(*   With both disjunction facts in the assumptions in the matching int64/  *)
+(*   int form, X86_STEPS_TAC EXEC (1--4) resolves BOTH cmp/ja guards        *)
+(*   automatically -> read RIP s4 = word(pc + 79). KEY: JA_NOT_TAKEN_LE     *)
+(*   must use `word a:int64` (register width) and `&`:int so the flag terms *)
+(*   match EXACTLY; a :int32 / :real mis-typing prints identically but      *)
+(*   fails to unify (the classic invisible-type-mismatch trap).             *)
+(* Then: SIMD setup vpmovzxbw..vpmovmskb, then 4 sub-iters each with one    *)
+(* more cmp/ja (instrs after sub-iters 1,2,3) discharged the same way.      *)
 (* ========================================================================= *)
 
 let MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT = prove
