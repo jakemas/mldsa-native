@@ -35,17 +35,23 @@ state is reviewable and not lost between sessions.
 
 ## eta4 proof — current state
 
+**The proof file loads end-to-end** against the current (clean) asm.
 `MLDSA_REJ_UNIFORM_ETA4_CORRECT` is reduced to three subgoals via
 `ENSURES_WHILE_UP2_TAC` (preamble / loop body / post-loop tail).
 
 | Subgoal | PC range | Status |
 | --- | --- | --- |
-| 1 — preamble (constant setup, `xorl` of counters) | `pc → pc+52` | **Fully proved** |
-| 2 — loop body, one outer iteration (4 sub-iters of the SIMD compaction) | `pc+52 → pc+52` or `pc+286` | **Admitted** (`MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT`) |
-| 3 — post-loop scalar tail | `pc+286 → pc+443` | **Admitted** (`MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_CHEAT`) |
+| 1 — preamble (12 instructions: 2nd `endbr64`, 3× broadcast-constant setup, `xorl` of counters) | `pc → pc+56` | **Fully proved** |
+| 2 — loop body, one outer iteration (4 sub-iters of the SIMD compaction) | `pc+56 → pc+56` or `pc+318` | **Admitted** (`MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT`) |
+| 3 — post-loop scalar tail | `pc+318 → pc+406` | **Admitted** (`MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_CHEAT`) |
 
-`MLDSA_REJ_UNIFORM_ETA4_SUBROUTINE_CORRECT` and `..._SUBROUTINE_MEMSAFE`
-are also wrapped with `CHEAT_TAC` pending the body/tail closures.
+`LENGTH mldsa_rej_uniform_eta4_tmc = 407` (411-byte `.o text` minus
+the gcc-auto-inserted leading `endbr64` stripped by `define_trimmed`).
+
+`MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_CORRECT` and `..._MEMSAFE` are
+also admitted (CHEAT_TAC) pending the body/tail closures. The
+IBT-wrapped `..._SUBROUTINE_CORRECT` / `_MEMSAFE` are commented out
+until the underlying NOIBT proofs land.
 
 ### What's actually been built around the cheats
 
@@ -94,28 +100,44 @@ into a closed proof":
     REJ_SAMPLE_ETA4_BYTES (SUB_LIST(0, 16*i)) ++ <this iter's contribution>`
    step.
 6. Step the `cmp`/`ja` and the trailing `jmp` back to the loop head
-   (or out to `pc+286` on the early-exit path).
+   (or out to `pc+318` on the early-exit path).
 
 ### What's left to close `SCALAR_TAIL_CHEAT`
 
 - **Case A** (we entered the tail because the SIMD loop's `ja $248`
   fired with `RAX > 248`) — already established that we hit the
-  `pc + 443` (function-end) `ret`; need the output-list shape lemma
+  `pc + 406` (function-end) `ret`; need the output-list shape lemma
   showing that the `outlist = SUB_LIST(0, 256) (REJ_SAMPLE_ETA4_BYTES inlist)`
   truncation matches what's in memory.
 - **Case B** (we reached the tail with `RCX > 256`) — still needs the
   inner scalar nibble-by-nibble loop stepping plus a
   `REJ_SAMPLE_ETA4_BYTES`-extension lemma for the suffix bytes.
 
-### Buflen mismatch warning
+### Annotations now in sync with the new asm
 
-The two `BODY_CHEAT`/`SCALAR_TAIL_CHEAT` ensures-shapes still mention
-`buf, 136` and `pc, 375`. The actual asm is **443 bytes** and the
-buffer is **272 bytes** (`BUFLEN = 272`, not 136). These need to be
-updated as part of closing the cheats — they are wrong-but-admitted
-right now. The non-CHEAT preamble subgoal is also still phrased
-against the old 400-byte length and needs the
-`LENGTH_MLDSA_REJ_UNIFORM_ETA4_TMC` rewrite refreshed.
+After the asm rewrite, the proof file has been updated end-to-end:
+- bytecode block regenerated from the new `.o` (411 bytes raw, 407
+  trimmed)
+- preamble step range bumped from `(1--11)` to `(1--12)` to cover
+  the second `endbr64` plus the broadcast-constant setup
+- WOP existence witness changed from `i = 8` to `i = 17` (smallest
+  `i` with `16*i > 256`)
+- buflen `136 → 272` everywhere (`MLD_AVX2_REJ_UNIFORM_ETA4_BUFLEN
+  = 272 = 2 * 136`)
+- thresholds: `<= 120 → <= 256` for the `pos` invariant and `<= 224
+  → <= 248` for the `outlen` invariant
+- PC offsets: `pc + 52 → pc + 56` (loop head), `pc + 286 → pc + 318`
+  (scalar tail entry), `pc + 399 → pc + 406` (function exit)
+- code length: `LENGTH mldsa_rej_uniform_eta4_tmc = 407`,
+  nonoverlapping image `(pc, 407)` (was `(pc, 375)` / `(pc, 400)`)
+- outlen-bound lemmas regenerated: `+8` slack carried through, e.g.
+  `outlen + val pcnt <= 256` (was `<= 232` for old `outlen <= 224`)
+- `SCALAR_TAIL_N_EQ_8 → SCALAR_TAIL_N_EQ_17` (loop now goes up to
+  16 outer iterations of 16-byte stride before scalar-tail entry)
+- `LENGTH_OUTLIST0_LE_280` rebound to `<= 280` (`248 + 32`)
+- `NIBLEN_BOUND_FROM_WOP` rebound to `<= 280`
+- a few `_136 / _224` lemmas renamed to their `_272 / _248`
+  counterparts
 
 ## eta2 proof — current state
 
@@ -162,12 +184,11 @@ That tradeoff (cleaner code → easier proof) is the one we settled on.
 ## Why this is a draft PR and not "real" work
 
 - Two `CHEAT_TAC`s remain inside the proof of
-  `MLDSA_REJ_UNIFORM_ETA4_CORRECT`, plus the eta2 proof is essentially
-  a stub.
-- The `LENGTH_MLDSA_REJ_UNIFORM_ETA4_TMC` rewrite and a number of
-  `nonoverlapping (..., buf, 136)` clauses were written against the
-  old (incorrect) bytecode and need to be updated to `buf, 272` /
-  the new 443-byte length before the proof file will reload cleanly.
+  `MLDSA_REJ_UNIFORM_ETA4_CORRECT` (`BODY_CHEAT` and
+  `SCALAR_TAIL_CHEAT`), plus the eta2 proof is essentially a stub.
+- `MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_{CORRECT,MEMSAFE}` are
+  also currently `CHEAT_TAC`-bodied wrappers; the IBT-wrapped
+  versions are commented out until those land.
 - The bench addition and the `meta.h`/autogen tweaks are scaffolding
   for the perf comparison work and may not survive review unchanged.
 

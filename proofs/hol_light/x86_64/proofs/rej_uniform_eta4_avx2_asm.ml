@@ -709,15 +709,15 @@ let VAL_WORD_POPCOUNT_LOW8_LE_8 = prove
 
 (* RAX-after-popcnt-add bridge: the asm `add eax, r9d` after popcnt produces *)
 (* RAX = word_zx(word_add(word_zx(word outlen)) (word_zx pcnt)). When        *)
-(* outlen <= 224 (loop-head precondition) and val pcnt <= 8 (popcnt bound),  *)
-(* this equals word(outlen + val pcnt) and the sum is bounded by 232,       *)
+(* outlen <= 248 (loop-head precondition) and val pcnt <= 8 (popcnt bound),  *)
+(* this equals word(outlen + val pcnt) and the sum is bounded by 256,       *)
 (* enabling the subsequent vmovdqu's nonoverlap proof.                       *)
 let RAX_BOUND_AFTER_POPCNT_ADD = prove
  (`!outlen:num pcnt:int32.
-     outlen <= 224 /\ val pcnt <= 8
+     outlen <= 248 /\ val pcnt <= 8
      ==> (word_zx (word_add (word_zx (word outlen:int32):int32) (word_zx pcnt:int32):int32):int64) =
          word(outlen + val pcnt) /\
-         outlen + val pcnt <= 232`,
+         outlen + val pcnt <= 256`,
   REPEAT GEN_TAC THEN STRIP_TAC THEN
   CONJ_TAC THENL
    [REWRITE_TAC[GSYM VAL_EQ; VAL_WORD] THEN
@@ -726,7 +726,7 @@ let RAX_BOUND_AFTER_POPCNT_ADD = prove
                   val(pcnt:int32) MOD 2 EXP 32 = val pcnt`
      (fun th -> REWRITE_TAC[th]) THENL
      [CONJ_TAC THEN MATCH_MP_TAC MOD_LT THENL
-       [UNDISCH_TAC `outlen <= 224` THEN
+       [UNDISCH_TAC `outlen <= 248` THEN
         REWRITE_TAC[ARITH_RULE `2 EXP 32 = 4294967296`] THEN ARITH_TAC;
         MP_TAC(ISPEC `pcnt:int32` VAL_BOUND) THEN
         REWRITE_TAC[DIMINDEX_32]];
@@ -734,16 +734,16 @@ let RAX_BOUND_AFTER_POPCNT_ADD = prove
     SUBGOAL_THEN `(outlen + val(pcnt:int32)) MOD 2 EXP 32 = outlen + val pcnt`
       SUBST1_TAC THENL
      [MATCH_MP_TAC MOD_LT THEN
-      UNDISCH_TAC `outlen <= 224` THEN UNDISCH_TAC `val(pcnt:int32) <= 8` THEN
+      UNDISCH_TAC `outlen <= 248` THEN UNDISCH_TAC `val(pcnt:int32) <= 8` THEN
       REWRITE_TAC[ARITH_RULE `2 EXP 32 = 4294967296`] THEN ARITH_TAC;
       ALL_TAC] THEN
     SUBGOAL_THEN `(outlen + val(pcnt:int32)) MOD 2 EXP 64 = outlen + val pcnt`
       SUBST1_TAC THENL
      [MATCH_MP_TAC MOD_LT THEN
-      UNDISCH_TAC `outlen <= 224` THEN UNDISCH_TAC `val(pcnt:int32) <= 8` THEN
+      UNDISCH_TAC `outlen <= 248` THEN UNDISCH_TAC `val(pcnt:int32) <= 8` THEN
       REWRITE_TAC[ARITH_RULE `2 EXP 64 = 18446744073709551616`] THEN ARITH_TAC;
       REFL_TAC];
-    UNDISCH_TAC `outlen <= 224` THEN UNDISCH_TAC `val(pcnt:int32) <= 8` THEN
+    UNDISCH_TAC `outlen <= 248` THEN UNDISCH_TAC `val(pcnt:int32) <= 8` THEN
     ARITH_TAC]);;
 
 (* Generic int32 word_zx(word_add(word_zx(word a), word_zx(word b))) = word(a+b) *)
@@ -773,15 +773,15 @@ let RAX_BOUND_GENERIC = prove
 (* 256). The simulator produces RAX with two nested word_zx wrappers     *)
 (* (one from popcntl int32 result wrapping into int64). This bridge      *)
 (* takes the bound `val x < 2 EXP 8` directly (from movzx semantics)     *)
-(* and produces the canonical `word(outlen + n) /\ outlen + n <= 232`.   *)
+(* and produces the canonical `word(outlen + n) /\ outlen + n <= 256`.   *)
 let RAX_BOUND_AFTER_POPCNT_ADD_DIRECT = prove
  (`!outlen:num x:int64.
-     outlen <= 224 /\ val(x:int64) < 2 EXP 8
+     outlen <= 248 /\ val(x:int64) < 2 EXP 8
      ==> ?n. n <= 8 /\
              word_zx (word_add (word_zx (word outlen:int32):int32)
                                (word_zx (word_zx (word(word_popcount(word_zx x:int32)):int32):int32):int32):int32):int64 =
              word(outlen + n):int64 /\
-             outlen + n <= 232`,
+             outlen + n <= 256`,
   REPEAT GEN_TAC THEN STRIP_TAC THEN
   SUBGOAL_THEN `word_popcount(word_zx (x:int64):int32) <= 8`
     ASSUME_TAC THENL
@@ -803,7 +803,7 @@ let RAX_BOUND_AFTER_POPCNT_ADD_DIRECT = prove
     word_popcount(word_zx (x:int64):int32)`
    (fun th -> REWRITE_TAC[th]) THENL
    [CONJ_TAC THEN MATCH_MP_TAC MOD_LT THENL
-    [UNDISCH_TAC `outlen <= 224` THEN
+    [UNDISCH_TAC `outlen <= 248` THEN
      REWRITE_TAC[ARITH_RULE `2 EXP 32 = 4294967296`] THEN ARITH_TAC;
      UNDISCH_TAC `word_popcount(word_zx (x:int64):int32) <= 8` THEN
      REWRITE_TAC[ARITH_RULE `2 EXP 32 = 4294967296`] THEN ARITH_TAC];
@@ -813,7 +813,7 @@ let RAX_BOUND_AFTER_POPCNT_ADD_DIRECT = prove
     outlen + word_popcount(word_zx (x:int64):int32)`
    SUBST1_TAC THENL
    [MATCH_MP_TAC MOD_LT THEN
-    UNDISCH_TAC `outlen <= 224` THEN
+    UNDISCH_TAC `outlen <= 248` THEN
     UNDISCH_TAC `word_popcount(word_zx (x:int64):int32) <= 8` THEN
     REWRITE_TAC[ARITH_RULE `2 EXP 32 = 4294967296`] THEN ARITH_TAC;
     ALL_TAC] THEN
@@ -822,7 +822,7 @@ let RAX_BOUND_AFTER_POPCNT_ADD_DIRECT = prove
     outlen + word_popcount(word_zx (x:int64):int32)`
    SUBST1_TAC THENL
    [MATCH_MP_TAC MOD_LT THEN
-    UNDISCH_TAC `outlen <= 224` THEN
+    UNDISCH_TAC `outlen <= 248` THEN
     UNDISCH_TAC `word_popcount(word_zx (x:int64):int32) <= 8` THEN
     REWRITE_TAC[ARITH_RULE `2 EXP 64 = 18446744073709551616`] THEN ARITH_TAC;
     ALL_TAC] THEN
@@ -832,18 +832,18 @@ let RAX_BOUND_AFTER_POPCNT_ADD_DIRECT = prove
 (* popcnt bound to give an existential `?n. n <= 8 /\ RAX_form = word    *)
 (* (outlen+n) /\ outlen+n <= 232` directly from the asm's mask-based     *)
 (* popcnt expression. This is the per-sub-iter inductive bridge: at      *)
-(* each sub-iter k, given outlen <= 224 (loop-head invariant), the post- *)
+(* each sub-iter k, given outlen <= 248 (loop-head invariant), the post- *)
 (* popcnt-add RAX has the canonical form word(outlen + n) where n is the *)
 (* per-sub-iter popcount (at most 8 nibbles accepted out of 4 bytes).    *)
 let RAX_AFTER_SUB_ITER = prove
  (`!outlen:num mask:int32.
-     outlen <= 224
+     outlen <= 248
      ==> ?n. n <= 8 /\
              (word_zx (word_add (word_zx (word outlen:int32):int32)
                                 (word_zx (word(word_popcount(word_zx (word_subword mask (0,8):byte):int32)):int32):int32)
                                 :int32):int64) =
              word(outlen + n) /\
-             outlen + n <= 232`,
+             outlen + n <= 256`,
   REPEAT GEN_TAC THEN STRIP_TAC THEN
   EXISTS_TAC `val(word(word_popcount(word_zx (word_subword (mask:int32) (0,8):byte):int32)):int32)` THEN
   CONJ_TAC THENL [REWRITE_TAC[VAL_WORD_POPCOUNT_LOW8_LE_8]; ALL_TAC] THEN
@@ -1217,15 +1217,15 @@ let POPCNT_NIBBLES_4_BYTES_BRIDGE = prove
   DISCH_THEN SUBST1_TAC THEN
   MATCH_ACCEPT_TAC LENGTH_FILTER_BYTE_NIBBLES_4_BYTES);;
 
-(* Sub-iter k outlen bound: outlen + sum of popcnts up to sub-iter k <= 224. *)
+(* Sub-iter k outlen bound: outlen + sum of popcnts up to sub-iter k <= 248. *)
 (* Used to prove JA-not-taken at each sub-iter's `cmp eax, 0xf8`.            *)
 
 let SUBITER_OUTLEN_BOUND_1 = prove
  (`!(inlist:byte list) i.
      16*(i+1) <= LENGTH inlist /\
-     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*(i+1)) inlist):int16 list) <= 224
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*(i+1)) inlist):int16 list) <= 248
      ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list) +
-         LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i, 4) inlist):int16 list) <= 224`,
+         LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i, 4) inlist):int16 list) <= 248`,
   REPEAT STRIP_TAC THEN
   REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
   MP_TAC(SPECL [`inlist:byte list`; `i:num`] REJ_NIBBLES_ETA4_STEP_16) THEN
@@ -1240,11 +1240,11 @@ let SUBITER_OUTLEN_BOUND_1 = prove
 let SUBITER_OUTLEN_BOUND_2 = prove
  (`!(inlist:byte list) i.
      16*(i+1) <= LENGTH inlist /\
-     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*(i+1)) inlist):int16 list) <= 224
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*(i+1)) inlist):int16 list) <= 248
      ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list) +
          LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i, 4) inlist):int16 list) +
          LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i + 4, 4) inlist):int16 list)
-         <= 224`,
+         <= 248`,
   REPEAT STRIP_TAC THEN
   REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
   MP_TAC(SPECL [`inlist:byte list`; `i:num`] REJ_NIBBLES_ETA4_STEP_16) THEN
@@ -1262,12 +1262,12 @@ let SUBITER_OUTLEN_BOUND_2 = prove
 let SUBITER_OUTLEN_BOUND_3 = prove
  (`!(inlist:byte list) i.
      16*(i+1) <= LENGTH inlist /\
-     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*(i+1)) inlist):int16 list) <= 224
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16*(i+1)) inlist):int16 list) <= 248
      ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list) +
          LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i, 4) inlist):int16 list) +
          LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i + 4, 4) inlist):int16 list) +
          LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i + 8, 4) inlist):int16 list)
-         <= 224`,
+         <= 248`,
   REPEAT STRIP_TAC THEN
   REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
   MP_TAC(SPECL [`inlist:byte list`; `i:num`] REJ_NIBBLES_ETA4_STEP_16) THEN
@@ -1284,7 +1284,7 @@ let SUBITER_OUTLEN_BOUND_3 = prove
                                 LENGTH_APPEND])))) THEN
   ASM_ARITH_TAC);;
 
-(* val(word(16*i):int64) = 16*i when 16*i <= 120 (i.e. i <= 7).            *)
+(* val(word(16*i):int64) = 16*i when 16 * i <= 256 (i.e. i <= 7).            *)
 (* Used to simplify the bytes128 address arithmetic in the body proof.      *)
 let VAL_WORD_16_TIMES_I = prove
  (`!(i:num). i <= 7 ==> val(word(16 * i):int64) = 16 * i`,
@@ -1293,10 +1293,10 @@ let VAL_WORD_16_TIMES_I = prove
   MATCH_MP_TAC MOD_LT THEN
   MP_TAC(SPEC `i:num` LT_REFL) THEN ASM_ARITH_TAC);;
 
-(* val(word(4*n):int64) = 4*n when n <= 224 (output array index).           *)
+(* val(word(4*n):int64) = 4*n when n <= 248 (output array index).           *)
 (* Used to simplify the bytes256 vmovdqu writeback address.                *)
 let VAL_WORD_4_TIMES_N = prove
- (`!(n:num). n <= 224 ==> val(word(4 * n):int64) = 4 * n`,
+ (`!(n:num). n <= 248 ==> val(word(4 * n):int64) = 4 * n`,
   GEN_TAC THEN DISCH_TAC THEN
   REWRITE_TAC[VAL_WORD; DIMINDEX_64] THEN
   MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC);;
@@ -1588,7 +1588,7 @@ let VPSLLW_VPOR_VPAND_INT16_NIBBLES = prove
 
 (* Address simplification: the simulator's `word_add buf (word(1 * val ...))`*)
 (* form arising from VPMOVZXBW addressing reduces to `word_add buf (word(16*i))` *)
-(* given i <= 7 (which holds because 16*i <= 120).                         *)
+(* given i <= 7 (which holds because 16 * i <= 256).                         *)
 let WORD_ADD_BUF_VAL_SIMP = prove
  (`!(buf:int64) (i:num). i <= 7
      ==> word_add buf (word(1 * val(word(16*i):int64))):int64 =
@@ -2172,17 +2172,18 @@ let VAL_WORD_GE_136 = prove
   ASM_REWRITE_TAC[]);;
 
 (* When the SIMD loop terminates because pos crosses the buf boundary       *)
-(* (i.e. 120 < 16*N), N must be exactly 8 (so pos = 128).                    *)
-let SCALAR_TAIL_N_EQ_8 = prove
+(* (i.e. 256 < 16*N), N must be exactly 17 (so pos = 16*17 = 272, hitting   *)
+(* the cmp $256, ecx exit on the 17th outer iteration).                     *)
+let SCALAR_TAIL_N_EQ_17 = prove
  (`!N (inlist:byte list).
-     LENGTH inlist = 136 /\
+     LENGTH inlist = 272 /\
      ~(N = 0) /\
-     120 < 16 * N /\
-     (!m. m < N ==> 16 * m <= 120 /\
-          LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST (0,16 * m) inlist):int16 list) <= 224)
-     ==> N = 8`,
+     256 < 16 * N /\
+     (!m. m < N ==> 16 * m <= 256 /\
+          LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST (0,16 * m) inlist):int16 list) <= 248)
+     ==> N = 17`,
   REPEAT STRIP_TAC THEN
-  SUBGOAL_THEN `N <= 8` ASSUME_TAC THENL
+  SUBGOAL_THEN `N <= 17` ASSUME_TAC THENL
    [FIRST_X_ASSUM(MP_TAC o SPEC `N - 1`) THEN
     ASM_SIMP_TAC[ARITH_RULE `~(N = 0) ==> N - 1 < N`] THEN
     ASM_ARITH_TAC;
@@ -2192,11 +2193,11 @@ let SCALAR_TAIL_N_EQ_8 = prove
 (* prefix length 248 + one more 16-byte chunk contributes at most 32).       *)
 let LENGTH_OUTLIST0_LE_280 = prove
  (`!N (inlist:byte list).
-     LENGTH inlist = 136 /\
+     LENGTH inlist = 272 /\
      ~(N = 0) /\
-     16 * (N - 1) <= 120 /\
-     LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST (0,16 * (N-1)) inlist):int16 list) <= 224
-     ==> LENGTH (REJ_SAMPLE_ETA4_BYTES (SUB_LIST(0, 16*N) inlist):int32 list) <= 256`,
+     16 * (N - 1) <= 256 /\
+     LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST (0,16 * (N-1)) inlist):int16 list) <= 248
+     ==> LENGTH (REJ_SAMPLE_ETA4_BYTES (SUB_LIST(0, 16*N) inlist):int32 list) <= 280`,
   REPEAT STRIP_TAC THEN REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
   SUBGOAL_THEN `16 * N = 16 * (N - 1) + 16` SUBST1_TAC THENL
    [ASM_ARITH_TAC; ALL_TAC] THEN
@@ -2218,23 +2219,23 @@ let VAL_WORD_LE_NOT_LT = prove
   SUBGOAL_THEN `a MOD 2 EXP 32 = a` (fun th -> REWRITE_TAC[th]) THENL
    [MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ASM_ARITH_TAC]);;
 
-let VAL_WORD_LE_224_NOT_LT = prove
- (`!a:num. a <= 224 ==> ~(224 < val(word a:int32))`,
+let VAL_WORD_LE_248_NOT_LT = prove
+ (`!a:num. a <= 248 ==> ~(248 < val(word a:int32))`,
   REPEAT STRIP_TAC THEN
-  MP_TAC(SPECL [`a:num`; `224`] VAL_WORD_LE_NOT_LT) THEN
-  ASM_REWRITE_TAC[ARITH_RULE `224 < 2 EXP 32`]);;
+  MP_TAC(SPECL [`a:num`; `248`] VAL_WORD_LE_NOT_LT) THEN
+  ASM_REWRITE_TAC[ARITH_RULE `248 < 2 EXP 32`]);;
 
-let VAL_WORD_LE_120_NOT_LT = prove
- (`!a:num. a <= 120 ==> ~(120 < val(word a:int32))`,
+let VAL_WORD_LE_256_NOT_LT = prove
+ (`!a:num. a <= 256 ==> ~(256 < val(word a:int32))`,
   REPEAT STRIP_TAC THEN
-  MP_TAC(SPECL [`a:num`; `120`] VAL_WORD_LE_NOT_LT) THEN
-  ASM_REWRITE_TAC[ARITH_RULE `120 < 2 EXP 32`]);;
+  MP_TAC(SPECL [`a:num`; `256`] VAL_WORD_LE_NOT_LT) THEN
+  ASM_REWRITE_TAC[ARITH_RULE `256 < 2 EXP 32`]);;
 
 (* word_add evaluation when both summands are bounded by 248 (and thus the   *)
 (* sum is also bounded). Used to compute exact RAX value after `add eax, r9d`*)
 (* in sub-iter 1 of the body proof.                                          *)
 let VAL_WORD_ADD_LE_248 = prove
- (`!a b. a + b <= 224
+ (`!a b. a + b <= 248
          ==> val(word_add (word a:int32) (word b:int32):int32) = a + b`,
   REPEAT STRIP_TAC THEN REWRITE_TAC[VAL_WORD_ADD; VAL_WORD; DIMINDEX_32] THEN
   SUBGOAL_THEN `a MOD 2 EXP 32 = a /\ b MOD 2 EXP 32 = b`
@@ -2253,10 +2254,10 @@ let NUM_OF_WORDLIST_PAIR_INT32 = prove
   REWRITE_TAC[num_of_wordlist; DIMINDEX_32] THEN ARITH_TAC);;
 
 (* Total output bound: full input gives at most 2 * LENGTH int32s.          *)
-let LENGTH_REJ_SAMPLE_ETA4_BYTES_136 = prove
+let LENGTH_REJ_SAMPLE_ETA4_BYTES_272 = prove
  (`!(inlist:byte list).
-     LENGTH inlist = 136
-     ==> LENGTH(REJ_SAMPLE_ETA4_BYTES inlist :int32 list) <= 272`,
+     LENGTH inlist = 272
+     ==> LENGTH(REJ_SAMPLE_ETA4_BYTES inlist :int32 list) <= 544`,
   REPEAT STRIP_TAC THEN
   MP_TAC(ISPEC `inlist:byte list` LENGTH_REJ_SAMPLE_ETA4_BYTES_BOUND) THEN
   ASM_REWRITE_TAC[] THEN ARITH_TAC);;
@@ -2308,10 +2309,10 @@ let SUB_LIST_256_LE = prove
   REWRITE_TAC[APPEND_NIL]);;
 
 (* When the input has its full known length, SUB_LIST(0, that length) is a   *)
-(* no-op: applies to LENGTH inlist = 136.                                    *)
-let SUB_LIST_BYTE_136 = prove
- (`!(l:byte list). LENGTH l = 136 ==> SUB_LIST(0, 136) l = l`,
-  REPEAT STRIP_TAC THEN UNDISCH_TAC `LENGTH (l:byte list) = 136` THEN
+(* no-op: applies to LENGTH inlist = 272.                                    *)
+let SUB_LIST_BYTE_272 = prove
+ (`!(l:byte list). LENGTH l = 272 ==> SUB_LIST(0, 272) l = l`,
+  REPEAT STRIP_TAC THEN UNDISCH_TAC `LENGTH (l:byte list) = 272` THEN
   DISCH_THEN(SUBST1_TAC o SYM) THEN MATCH_ACCEPT_TAC SUB_LIST_LENGTH);;
 
 (* The asm computes `4 - low_nibble(b)` directly as int32, while the spec   *)
@@ -2396,13 +2397,13 @@ let REJ_SAMPLE_ETA4_BYTES_CONS = prove
 
 (* SUB_LIST step: extending the prefix by one element. Used in the scalar  *)
 (* tail's loop invariant where each iteration advances pos by 1.            *)
-(* WOP-derived bound: niblen <= 256 (i.e., 224 + 32, since each iter adds at most 32) *)
+(* WOP-derived bound: niblen <= 280 (i.e., 248 + 32, since each iter adds at most 32) *)
 let NIBLEN_BOUND_FROM_WOP = prove
  (`!inlist:byte list. !N.
    0 < N /\
    (!m. m < N ==> 16 * (m + 1) <= LENGTH inlist /\
-        LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*m) inlist)) <= 224)
-   ==> LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*N) inlist):int16 list) <= 256`,
+        LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*m) inlist)) <= 248)
+   ==> LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*N) inlist):int16 list) <= 280`,
   REPEAT STRIP_TAC THEN
   FIRST_X_ASSUM(MP_TAC o SPEC `N - 1`) THEN
   ASM_REWRITE_TAC[ARITH_RULE `N - 1 < N <=> 0 < N`] THEN STRIP_TAC THEN
@@ -2414,16 +2415,16 @@ let NIBLEN_BOUND_FROM_WOP = prove
     LENGTH_REJ_NIBBLES_ETA4) THEN
   REWRITE_TAC[LENGTH_SUB_LIST] THEN
   UNDISCH_TAC
-   `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*(N-1)) inlist):int16 list) <= 224` THEN
+   `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*(N-1)) inlist):int16 list) <= 248` THEN
   ARITH_TAC);;
 
 (* ========================================================================= *)
 (* Main CORRECT theorem.                                                     *)
 (*                                                                           *)
 (* Status: Phase 0-2 (setup, WOP, ENSURES_WHILE_UP2_TAC) PROVED.             *)
-(*         Subgoal 1 (preamble pc -> pc+52) FULLY PROVED.                    *)
-(*         Subgoal 2 (loop body pc+52 -> pc+52/pc+286) CHEATed.              *)
-(*         Subgoal 3 (post-loop scalar tail pc+286 -> end) CHEATed.          *)
+(*         Subgoal 1 (preamble pc -> pc + 56) FULLY PROVED.                    *)
+(*         Subgoal 2 (loop body pc + 56 -> pc + 56/pc + 318) CHEATed.              *)
+(*         Subgoal 3 (post-loop scalar tail pc + 318 -> end) CHEATed.          *)
 (*                                                                           *)
 (* Loop body structure: 4 sub-iterations of (vextracti128/vpsrldq +         *)
 (* movzbl + vmovq + vpshufb + vpmovsxbd + vmovdqu + popcntl + add + shr +   *)
@@ -2437,8 +2438,8 @@ let NIBLEN_BOUND_FROM_WOP = prove
 
 (* ========================================================================= *)
 (* Body helper lemma: ensures-shape closing the loop body i -> i+1.          *)
-(* From state at pc+52 (loop head, after WOP-derived precondition for i)     *)
-(* to state at pc+52 (next iter) or pc+286 (loop exit).                      *)
+(* From state at pc + 56 (loop head, after WOP-derived precondition for i)     *)
+(* to state at pc + 56 (next iter) or pc + 318 (loop exit).                      *)
 (* The proof of this lemma is admitted (CHEAT_TAC). To close it fully:       *)
 (*  - REABBREV pattern (mask at s22, r10val0 at s28) to capture popcnt;     *)
 (*  - RAX_BOUND_AFTER_POPCNT_ADD_DIRECT to convert RAX to canonical form;   *)
@@ -2448,21 +2449,21 @@ let NIBLEN_BOUND_FROM_WOP = prove
 
 let MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT = prove
  (`!res buf table (inlist:byte list) pc N (i:num) stackpointer.
-        LENGTH inlist = 136 /\
-        nonoverlapping_modulo (2 EXP 64) (pc,375) (val res,1024) /\
-        nonoverlapping_modulo (2 EXP 64) (pc,375) (val buf,136) /\
-        nonoverlapping_modulo (2 EXP 64) (pc,375) (val table,2048) /\
-        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf,136) /\
+        LENGTH inlist = 272 /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val table,2048) /\
+        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table,2048) /\
         ~(N = 0) /\
         i < N /\ ~(i = N) /\ 0 < N /\
-        16 * i <= 120 /\
-        LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * i) inlist)) <= 224
+        16 * i <= 256 /\
+        LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * i) inlist)) <= 248
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(pc + 52) /\
+                  read RIP s = word(pc + 56) /\
                   read RSP s = stackpointer /\
-                  read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
                     num_of_wordlist(mldsa_rej_uniform_table:byte list) /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -2472,9 +2473,9 @@ let MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT = prove
                    read RCX s = word(16*i) /\
                    read(memory :> bytes(res, 4 * outlen)) s = num_of_wordlist outlist))
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(if i + 1 < N then pc + 52 else pc + 286) /\
+                  read RIP s = word(if i + 1 < N then pc + 56 else pc + 318) /\
                   read RSP s = stackpointer /\
-                  read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
                     num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -2493,30 +2494,30 @@ let MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT = prove
   CHEAT_TAC);;
 
 (* ========================================================================= *)
-(* Scalar tail helper lemma: ensures-shape from pc+286 to function end.      *)
+(* Scalar tail helper lemma: ensures-shape from pc + 318 to function end.      *)
 (* Handles both Case A (jae fires when outlen0 >= 256) and Case B (scan      *)
 (* loop over remaining bytes). Proof admitted (CHEAT_TAC).                   *)
 (* ========================================================================= *)
 
 let MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_CHEAT = prove
  (`!res buf table (inlist:byte list) pc N stackpointer.
-        LENGTH inlist = 136 /\
-        nonoverlapping_modulo (2 EXP 64) (pc,375) (val res,1024) /\
-        nonoverlapping_modulo (2 EXP 64) (pc,375) (val buf,136) /\
-        nonoverlapping_modulo (2 EXP 64) (pc,375) (val table,2048) /\
-        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf,136) /\
+        LENGTH inlist = 272 /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val table,2048) /\
+        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table,2048) /\
-        (120 < 16 * N \/
-         224 < LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * N) inlist):int16 list)) /\
+        (256 < 16 * N \/
+         248 < LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * N) inlist):int16 list)) /\
         (!m. m < N
-             ==> 16 * m <= 120 /\
-                 LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * m) inlist)) <= 224) /\
+             ==> 16 * m <= 256 /\
+                 LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * m) inlist)) <= 248) /\
         ~(N = 0)
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(pc + 286) /\
+                  read RIP s = word(pc + 318) /\
                   read RSP s = stackpointer /\
-                  read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
                     num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -2539,17 +2540,17 @@ let MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_CHEAT = prove
 
 let MLDSA_REJ_UNIFORM_ETA4_CORRECT = prove
  (`!res buf table (inlist:byte list) pc.
-        LENGTH inlist = 136 /\
+        LENGTH inlist = 272 /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (res, 1024) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 136) /\
+        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 272) /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (table, 2048) /\
-        nonoverlapping (res, 1024) (buf, 136) /\
+        nonoverlapping (res, 1024) (buf, 272) /\
         nonoverlapping (res, 1024) (table, 2048)
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
                   read RIP s = word pc /\
                   C_ARGUMENTS [res; buf; table] s /\
-                  read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
                     num_of_wordlist mldsa_rej_uniform_table)
              (\s. read RIP s = word(pc + LENGTH (BUTLAST mldsa_rej_uniform_eta4_tmc)) /\
@@ -2565,9 +2566,9 @@ let MLDSA_REJ_UNIFORM_ETA4_CORRECT = prove
   (* ===================================================================== *)
   (* Phase 0: Setup - introduce variables, strip assumptions               *)
   (*                                                                       *)
-  (* Concretize LENGTH mldsa_rej_uniform_eta4_tmc to 400 in the nonoverlap *)
+  (* Concretize LENGTH mldsa_rej_uniform_eta4_tmc to 407 in the nonoverlap *)
   (* hypotheses so that ORTHOGONAL_COMPONENTS_TAC can handle them later in *)
-  (* the body's vmovdqu store at instruction 28.                          *)
+  (* the body's vmovdqu store.                                            *)
   (* ===================================================================== *)
   MAP_EVERY X_GEN_TAC
    [`res:int64`; `buf:int64`; `table:int64`;
@@ -2580,16 +2581,17 @@ let MLDSA_REJ_UNIFORM_ETA4_CORRECT = prove
   (* ===================================================================== *)
   (* Phase 1: WOP to find smallest N where loop terminates.                *)
   (*                                                                       *)
-  (* Loop checks: cmp eax,0xF8 (248); cmp ecx,0x78 (120).                 *)
-  (* Each iteration adds 16 to ecx (4 sub-iters * 4 each).                *)
-  (* Exit: ecx > 120 OR (output count) > 248.                             *)
-  (* WOP gives smallest N where loop must exit.                           *)
+  (* Loop checks: cmp eax,0xF8 (248); cmp ecx,0x100 (256).                 *)
+  (* Each outer iter adds 16 to ecx (4 sub-iters * 4 each).               *)
+  (* Exit: ecx > 256 OR ctr > 248.                                        *)
+  (* WOP gives smallest N where loop must exit. Witness: i = 17 makes     *)
+  (* 16*i = 272 > 256, satisfying the disjunction.                        *)
   (* ===================================================================== *)
   SUBGOAL_THEN
-   `?i. 120 < 16 * i \/
-        224 < LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * i) inlist):int16 list)`
+   `?i. 256 < 16 * i \/
+        248 < LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * i) inlist):int16 list)`
   MP_TAC THENL
-   [EXISTS_TAC `8:num` THEN ARITH_TAC;
+   [EXISTS_TAC `17:num` THEN ARITH_TAC;
     GEN_REWRITE_TAC LAND_CONV [num_WOP]] THEN
   DISCH_THEN(X_CHOOSE_THEN `N:num` (CONJUNCTS_THEN2 ASSUME_TAC MP_TAC)) THEN
   DISCH_THEN(fun th -> ASSUME_TAC(REWRITE_RULE[DE_MORGAN_THM; NOT_LT] th)) THEN
@@ -2604,12 +2606,12 @@ let MLDSA_REJ_UNIFORM_ETA4_CORRECT = prove
   (* ===================================================================== *)
   (* Phase 2: ENSURES_WHILE_UP2_TAC for the SIMD loop                     *)
   (*                                                                       *)
-  (* Loop head: pc+52 (cmp eax,0xF8)                                       *)
-  (* Loop exit: pc+286 (scalar code starts here)                          *)
+  (* Loop head: pc + 56 (cmp eax,0xF8)                                    *)
+  (* Loop exit: pc + 318 (scalar code starts here)                        *)
   (* ===================================================================== *)
-  ENSURES_WHILE_UP2_TAC `N:num` `pc + 52` `pc + 286`
+  ENSURES_WHILE_UP2_TAC `N:num` `pc + 56` `pc + 318`
    `\i s. read RSP s = stackpointer /\
-          read (memory :> bytes (buf,136)) s = num_of_wordlist inlist /\
+          read (memory :> bytes (buf, 272)) s = num_of_wordlist inlist /\
           read (memory :> bytes (table,2048)) s =
             num_of_wordlist(mldsa_rej_uniform_table:byte list) /\
           read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -2621,12 +2623,13 @@ let MLDSA_REJ_UNIFORM_ETA4_CORRECT = prove
   ASM_REWRITE_TAC[LT_REFL] THEN REPEAT CONJ_TAC THENL
 
    [(* ================================================================= *)
-    (* Subgoal 1: Pre-loop setup (preamble pc -> pc+52)                  *)
-    (* FULLY PROVED — instructions 1-11 set up xmm2..xmm4 broadcast      *)
-    (* constants, then xor eax,eax and xor ecx,ecx.                      *)
+    (* Subgoal 1: Pre-loop setup (preamble pc -> pc + 56)                *)
+    (* Instructions 1-12: endbr64 (the *second* one — the first was     *)
+    (* trimmed by define_trimmed), 3x (mov r8d / vmovd / vpbroadcastd), *)
+    (* then xor eax,eax and xor ecx,ecx.                                *)
     (* ================================================================= *)
     ENSURES_INIT_TAC "s0" THEN
-    X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (1--11) THEN
+    X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (1--12) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
     CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
     REWRITE_TAC[MULT_CLAUSES; ADD_CLAUSES; SUB_LIST_CLAUSES;
@@ -2665,17 +2668,17 @@ let MLDSA_REJ_UNIFORM_ETA4_CORRECT = prove
 
 let MLDSA_REJ_UNIFORM_ETA4_CORRECT_BOUND = prove
  (`!res buf table (inlist:byte list) pc.
-    LENGTH inlist = 136 /\
+    LENGTH inlist = 272 /\
     nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (res, 1024) /\
-    nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 136) /\
+    nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 272) /\
     nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (table, 2048) /\
-    nonoverlapping (res, 1024) (buf, 136) /\
+    nonoverlapping (res, 1024) (buf, 272) /\
     nonoverlapping (res, 1024) (table, 2048)
     ==> ensures x86
          (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
               read RIP s = word pc /\
               C_ARGUMENTS [res; buf; table] s /\
-              read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+              read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
               read(memory :> bytes(table,2048)) s =
                 num_of_wordlist mldsa_rej_uniform_table)
          (\s. read RIP s = word(pc + LENGTH (BUTLAST mldsa_rej_uniform_eta4_tmc)) /\
@@ -2735,14 +2738,14 @@ let MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_CORRECT =
   type_invention_error := false;
   let th = prove
    (`!res buf table (inlist:byte list) pc stackpointer returnaddress.
-        LENGTH inlist = 136 /\
+        LENGTH inlist = 272 /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (res, 1024) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 136) /\
+        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 272) /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (table, 2048) /\
-        nonoverlapping (res, 1024) (buf, 136) /\
+        nonoverlapping (res, 1024) (buf, 272) /\
         nonoverlapping (res, 1024) (table, 2048) /\
         nonoverlapping (stackpointer, 8) (res, 1024) /\
-        nonoverlapping (stackpointer, 8) (buf, 136) /\
+        nonoverlapping (stackpointer, 8) (buf, 272) /\
         nonoverlapping (stackpointer, 8) (table, 2048) /\
         nonoverlapping (stackpointer, 8) (word pc, LENGTH mldsa_rej_uniform_eta4_tmc)
         ==> ensures x86
@@ -2751,7 +2754,7 @@ let MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_CORRECT =
                   read RSP s = stackpointer /\
                   read (memory :> bytes64 stackpointer) s = returnaddress /\
                   C_ARGUMENTS [res; buf; table] s /\
-                  read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
                     num_of_wordlist mldsa_rej_uniform_table)
              (\s. read RIP s = returnaddress /\
@@ -2785,17 +2788,17 @@ let MLDSA_REJ_UNIFORM_ETA4_SUBROUTINE_CORRECT =
 
 let MLDSA_REJ_UNIFORM_ETA4_MEMSAFE = prove
  (`!res buf table (inlist:byte list) e pc.
-        LENGTH inlist = 136 /\
+        LENGTH inlist = 272 /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (res, 1024) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 136) /\
+        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 272) /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (table, 2048) /\
-        nonoverlapping (res, 1024) (buf, 136) /\
+        nonoverlapping (res, 1024) (buf, 272) /\
         nonoverlapping (res, 1024) (table, 2048)
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
                   read RIP s = word pc /\
                   C_ARGUMENTS [res; buf; table] s /\
-                  read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
                     num_of_wordlist mldsa_rej_uniform_table /\
                   read events s = e)
@@ -2803,7 +2806,7 @@ let MLDSA_REJ_UNIFORM_ETA4_MEMSAFE = prove
                   (exists e2.
                      read events s = APPEND e2 e /\
                      memaccess_inbounds e2
-                       [buf,136; table,2048]
+                       [buf,272; table,2048]
                        [res,1024]))
              (MAYCHANGE [RIP; RAX; RCX; R8; R9; R10; R11] ,,
               MAYCHANGE [ZMM0; ZMM1; ZMM2; ZMM3; ZMM4; ZMM5; ZMM6] ,,
@@ -2813,14 +2816,14 @@ let MLDSA_REJ_UNIFORM_ETA4_MEMSAFE = prove
 
 let MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_MEMSAFE = prove
  (`!res buf table (inlist:byte list) e pc stackpointer returnaddress.
-        LENGTH inlist = 136 /\
+        LENGTH inlist = 272 /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (res, 1024) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (buf, 136) /\
+        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (buf, 272) /\
         nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (table, 2048) /\
-        nonoverlapping (res, 1024) (buf, 136) /\
+        nonoverlapping (res, 1024) (buf, 272) /\
         nonoverlapping (res, 1024) (table, 2048) /\
         nonoverlapping (stackpointer, 8) (res, 1024) /\
-        nonoverlapping (stackpointer, 8) (buf, 136) /\
+        nonoverlapping (stackpointer, 8) (buf, 272) /\
         nonoverlapping (stackpointer, 8) (table, 2048) /\
         nonoverlapping (stackpointer, 8) (word pc, LENGTH mldsa_rej_uniform_eta4_mc)
         ==> ensures x86
@@ -2829,7 +2832,7 @@ let MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_MEMSAFE = prove
                   read RSP s = stackpointer /\
                   read (memory :> bytes64 stackpointer) s = returnaddress /\
                   C_ARGUMENTS [res; buf; table] s /\
-                  read(memory :> bytes(buf,136)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
                     num_of_wordlist mldsa_rej_uniform_table /\
                   read events s = e)
@@ -2838,7 +2841,7 @@ let MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_MEMSAFE = prove
                   (exists e2.
                      read events s = APPEND e2 e /\
                      memaccess_inbounds e2
-                       [buf,136; table,2048]
+                       [buf,272; table,2048]
                        [res,1024]))
              (MAYCHANGE [RIP; RSP; RAX; RCX; R8; R9; R10; R11] ,,
               MAYCHANGE [ZMM0; ZMM1; ZMM2; ZMM3; ZMM4; ZMM5; ZMM6] ,,
