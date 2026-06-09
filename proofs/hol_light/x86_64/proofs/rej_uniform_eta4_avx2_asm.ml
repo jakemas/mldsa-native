@@ -1169,6 +1169,26 @@ let ACC_IDX_LT_8 = prove
   REWRITE_TAC[ACC_IDX] THEN REPEAT GEN_TAC THEN
   REWRITE_TAC[MEM_FILTER; MEM] THEN STRIP_TAC THEN ASM_REWRITE_TAC[] THEN ARITH_TAC);;
 
+(* Gather-at-accepted-positions = filter: gathering an 8-element list at the *)
+(* positions where a predicate holds equals filtering the list. This is the *)
+(* abstract bridge connecting ACC_IDX m (set-bit positions of the mask) to  *)
+(* FILTER (<9) (the accepted nibble values): when the mask's bit j is the    *)
+(* accept-predicate of nibble j, gathering the eta-value vector at ACC_IDX m *)
+(* yields exactly the accepted nibbles' eta values. Combined with            *)
+(* PSHUFB_ACCEPTED_PREFIX_NUM and VPMOVSXBD_LANE_EXTRACT this closes the     *)
+(* per-sub-iter value chain to REJ_SAMPLE_ETA4_BYTES of the 4-byte block.    *)
+let GATHER_FILTERED_IDX_8 = prove
+ (`!(P:A->bool) a0 a1 a2 a3 a4 a5 a6 a7.
+     MAP (\j. EL j [a0;a1;a2;a3;a4;a5;a6;a7])
+         (FILTER (\j. P (EL j [a0;a1;a2;a3;a4;a5;a6;a7])) [0;1;2;3;4;5;6;7]) =
+     FILTER P [a0;a1;a2;a3;a4;a5;a6;a7]`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[FILTER; MAP] THEN
+  CONV_TAC(DEPTH_CONV EL_CONV) THEN
+  REWRITE_TAC[] THEN
+  REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP; FILTER]) THEN
+  CONV_TAC(DEPTH_CONV EL_CONV) THEN REWRITE_TAC[]);;
+
 (* The full abstract pshufb-compaction-correctness statement: the first     *)
 (* popcount(m) = |ACC_IDX m| output bytes of the table-driven VPSHUFB are   *)
 (* exactly the source bytes g at the accepted nibble positions ACC_IDX m,   *)
