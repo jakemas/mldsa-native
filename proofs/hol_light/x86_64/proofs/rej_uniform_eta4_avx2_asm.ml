@@ -1370,6 +1370,85 @@ let SUBITER_STORE = prove
   REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP]) THEN
   CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC(DEPTH_CONV EL_CONV) THEN ASM_REWRITE_TAC[]);;
 
+(* For an accepted nibble (n < 9), the byte-width and int16-width forms of the *)
+(* eta coefficient (4 - n) sign-extend to the SAME int32. Needed because the   *)
+(* asm computes 4-nibble in byte lanes (vpsubb) then vpmovsxbd, while the spec *)
+(* uses int16 nibbles; both give word(4-n):int32 for n<9 (no underflow since   *)
+(* n<=4 gives 4-n, and 5..8 give the sign-extended negative). 9-way blast.     *)
+let SX_SUB4_BYTE_EQ_INT16 = prove
+ (`!n. n < 9
+       ==> word_sx(word_sub (word 4:byte) (word n:byte)):int32 =
+           word_sx(word_sub (word 4:int16) (word n:int16)):int32`,
+  REPEAT STRIP_TAC THEN
+  FIRST_ASSUM(DISJ_CASES_TAC o MATCH_MP (ARITH_RULE
+    `n < 9 ==> n=0\/n=1\/n=2\/n=3\/n=4\/n=5\/n=6\/n=7\/n=8`)) THEN
+  POP_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC) THEN
+  CONV_TAC WORD_BLAST);;
+
+(* SUBITER STORE (int32 form) — the per-sub-iter store-value lemma keyed to    *)
+(* numeric nibble values. Given gather byte j = (4 - v_j) and mask bit j =     *)
+(* (v_j < 9), the 8-int32 vpmovsxbd output, truncated to popcount(m) lanes,    *)
+(* equals MAP (\v. word_sx(word_sub 4 v)) over the accepted nibbles — i.e. the *)
+(* int32 eta coefficients in compacted order. This is exactly the vmovdqu      *)
+(* store contribution of one sub-iter; instantiated 4x and composed via        *)
+(* REJ_SAMPLE_ETA4_BYTES_16_AS_4 to give the iteration's REJ_SAMPLE step.      *)
+let SUBITER_STORE_INT32 = prove
+ (`!(g:int128) (m:byte) v0 v1 v2 v3 v4 v5 v6 v7.
+    v0<16/\v1<16/\v2<16/\v3<16/\v4<16/\v5<16/\v6<16/\v7<16 /\
+    (!j. j < 8 ==> (bit j m <=> EL j [v0;v1;v2;v3;v4;v5;v6;v7] < 9)) /\
+    (!j. j < 8 ==> word_subword g (8*j,8):byte =
+                   word_sub (word 4) (word(EL j [v0;v1;v2;v3;v4;v5;v6;v7]):byte))
+    ==> MAP (\b:byte. word_sx b:int32)
+            (SUB_LIST(0, LENGTH(ACC_IDX m)) (PSHUFB_OUT_LIST g m)) =
+        MAP (\v. word_sx(word_sub (word 4:int16) (word v)):int32)
+            (FILTER (\v. v < 9) [v0;v1;v2;v3;v4;v5;v6;v7])`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`g:int128`; `m:byte`;
+    `word v0:byte`;`word v1:byte`;`word v2:byte`;`word v3:byte`;
+    `word v4:byte`;`word v5:byte`;`word v6:byte`;`word v7:byte`] SUBITER_STORE) THEN
+  SUBGOAL_THEN `val(word v0:byte)=v0/\val(word v1:byte)=v1/\val(word v2:byte)=v2/\
+                val(word v3:byte)=v3/\val(word v4:byte)=v4/\val(word v5:byte)=v5/\
+                val(word v6:byte)=v6/\val(word v7:byte)=v7`
+    STRIP_ASSUME_TAC THENL
+   [REWRITE_TAC[VAL_WORD; DIMINDEX_8] THEN REPEAT CONJ_TAC THEN
+    MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  ANTS_TAC THENL
+   [SUBGOAL_THEN
+      `!j. j < 8 ==> val(EL j [word v0;word v1;word v2;word v3;
+                               word v4;word v5;word v6;word v7]:byte) =
+                     EL j [v0;v1;v2;v3;v4;v5;v6;v7]`
+      ASSUME_TAC THENL
+     [X_GEN_TAC `j:num` THEN DISCH_TAC THEN
+      SUBGOAL_THEN `j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`
+        (REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC) THENL
+       [ASM_ARITH_TAC; ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC] THEN
+      CONV_TAC(DEPTH_CONV EL_CONV) THEN ASM_REWRITE_TAC[];
+      ALL_TAC] THEN
+    CONJ_TAC THEN X_GEN_TAC `j:num` THEN DISCH_TAC THENL
+     [FIRST_X_ASSUM(MP_TAC o SPEC `j:num`) THEN
+      ASM_SIMP_TAC[] THEN DISCH_THEN(K ALL_TAC) THEN
+      FIRST_X_ASSUM(MP_TAC o SPEC `j:num` o check (fun th ->
+        let s=string_of_term(concl th) in
+        let h n=let nl=String.length n and hl=String.length s in
+          let rec go i=if i+nl>hl then false else if String.sub s i nl=n then true else go(i+1) in go 0 in
+        h "bit j")) THEN ASM_REWRITE_TAC[];
+      FIRST_X_ASSUM(MP_TAC o SPEC `j:num` o check (fun th ->
+        let s=string_of_term(concl th) in
+        let h n=let nl=String.length n and hl=String.length s in
+          let rec go i=if i+nl>hl then false else if String.sub s i nl=n then true else go(i+1) in go 0 in
+        h "word_subword")) THEN ASM_REWRITE_TAC[] THEN
+      DISCH_THEN SUBST1_TAC THEN AP_TERM_TAC THEN
+      SUBGOAL_THEN `j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`
+        (REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC) THENL
+       [ASM_ARITH_TAC; ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC;ALL_TAC] THEN
+      CONV_TAC(DEPTH_CONV EL_CONV) THEN REWRITE_TAC[]];
+    DISCH_THEN SUBST1_TAC] THEN
+  REWRITE_TAC[GSYM MAP_o; o_DEF] THEN
+  REWRITE_TAC[FILTER; MAP] THEN ASM_REWRITE_TAC[] THEN
+  REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP]) THEN
+  ASM_SIMP_TAC[SX_SUB4_BYTE_EQ_INT16]);;
+
 (* VPMOVSXBD per-lane: the 8 int32 lanes of the sign-extend of an int64 (the *)
 (* low 64 bits of the pshufb result) are word_sx of the 8 input bytes. Same  *)
 (* structural-isolation recipe as PSHUFB_LANE_EXTRACT (word_sx is a fixed    *)
