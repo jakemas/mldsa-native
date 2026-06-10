@@ -134,6 +134,38 @@
      PSHUFB_ACCEPTED_PREFIX_NUM, VPMOVSXBD_LANE_EXTRACT, WORD_SUB_4_NIBBLE_*).
      Compose 4 via SUBITER_OUTLEN_STEP_4 + REJ_SAMPLE_ETA4_BYTES_16_AS_4. *)
 
+(* ---- RECONNAISSANCE FINDINGS (sub-iter 1 fully mapped, s11->s21) ---- *)
+(* Instruction layout (clean asm), one sub-iter = 10 instrs after setup:
+     pc+110 s12 vextracti128 $0 f0sub->xmm5   (g0a = low128 of f0sub)
+     pc+116 s13 movzbl r8b->r10d              (R10 = mask8 MOD 256)
+     pc+   s14 vmovq (tab,r10,8)->xmm6        (tab1 = table[mask8&0xff])
+     pc+   s15 vpshufb xmm6,xmm5->xmm6        (pshuf1 = compacted (4-nib) bytes)
+     pc+   s16 vpmovsxbd xmm6->ymm1           (sx1 = 8 int32 sign-extend)
+     pc+136 s17 vmovdqu ymm1->(out,rax,4)     STORE: writes bytes256 at
+                                              word_add res (word(4*val(word outlen0)))
+     pc+   s18 popcntl r10d->r9d              (cnt = popcount(mask8&0xff))
+     pc+   s19 addl r9d,eax                   (ctr += cnt -> RAX)
+     pc+   s20 shrl $8,r8d                    (mask8 >>= 8 for next sub-iter)
+     pc+156 s21 addl $4,ecx                   (pos += 4: RCX = 16i+4)  [CONFIRMED]
+     then cmp $248,eax ; ja scalar  (mid-iter guard 1)
+   RCX at s21 = word_zx(word_add(word_zx(word(16*i)))(word 4)) = word(16i+4). [CONFIRMED]
+   STORE lands via nonoverlapping at memory:>bytes256(word_add res(word(4*val(word outlen0)))). [CONFIRMED]
+
+   KEY LESSON: opaque REABBREV + PURGE breaks the RAX/popcnt/mask8 chain (the
+   value eqs get dropped with their source state). For CLEAN_BODY VALUE proof
+   do NOT abbreviate mask8/f1bnd/f0sub opaquely; instead carry SUBGOAL spec-forms:
+     - mask8 = word_zx(word_of_bits(\i. i<8 /\ bit(8i+7) <low64 of f1bnd>)) via
+       VMOVMSKB_BYTE_EQ_64 (low lane) — gives the 8-bit accept mask of block.
+     - f1bnd lane k (8k,8) = word_sub(nibble_k)(word 9): VPSUBB_SIGN_BIT_LT_9 ->
+       bit 7 set iff nibble_k < 9. So mask bit k <=> nibble_k < 9 (ETA_GATHER hyp).
+     - popcount(mask8&0xff) = LENGTH(FILTER(val<9) [n0..n7]) via POPCNT_EQ_LENGTH_FILTER_8
+       = LENGTH(REJ_NIBBLES_ETA4 <4-byte block>) (8 nibbles of 4 bytes).
+     - nibbles n_k from chunk0 bytes via VPSLLW_VPOR_VPAND_INT16_NIBBLES +
+       VPMOVZXBW_LANE_EXTRACT (lo/hi nibble of each of the 4 block bytes).
+   Then RAX after s19 = word(outlen0 + popcount) = word(LENGTH(REJ_SAMPLE_ETA4_BYTES
+   (SUB_LIST(0,16i+4) inlist))) by SUBITER_OUTLEN_STEP_4; mid-guard via
+   JA_NOT_TAKEN_LE + CLEAN_BLOCK_BOUNDS (niblen(16i+4)<=248 on clean iter). *)
+
 (* TODO next session:
    - For VALUE correctness (not just shape), replace opaque REABBREV of the
      nibble/sub vectors with SUBGOAL_THEN `read YMMk sN = word(num_of_wordlist
