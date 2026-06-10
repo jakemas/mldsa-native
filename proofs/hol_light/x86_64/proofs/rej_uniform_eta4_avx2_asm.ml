@@ -2828,6 +2828,167 @@ let SUBITER1_VALUE =
       CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
       REWRITE_TAC[SUBITER_GATHER_NIB]]);;
 
+(* ------------------------------------------------------------------------- *)
+(* HIGH-HALF byte lemmas (output bytes 16..31 of the 32-byte SIMD vectors,    *)
+(* i.e. bit offsets 128..248).  Sub-iters 3 and 4 read the high 128-bit lane  *)
+(* of f0sub/f1bnd (via `vextracti128 $1`), which holds the nibbles of input   *)
+(* chunk bytes 8..15.  The low-half lemmas (F0NIB_BYTES / F0SUB_BYTES /        *)
+(* F1BND_BYTES) only cover bytes 0..15; these are the verbatim analogues for  *)
+(* bytes 16..31, proved by the identical recipes.                            *)
+let F0NIB_BYTES_HI =
+  let chain = rand(rator(lhand(hd(conjuncts(snd(strip_forall(concl F0NIB_BYTES))))))) in
+  let mk_cj bi =
+    let off = 128 + 8*bi in
+    let qbyte = 8 + bi/2 in
+    let hi = (bi mod 2 = 1) in
+    let lhs = mk_comb(mk_comb(`word_subword:int256->num#num->byte`, chain),
+                      mk_pair(mk_small_numeral off, `8`)) in
+    let v = mk_comb(`val:byte->num`, mk_comb(mk_comb(`word_subword:int128->num#num->byte`,`q:int128`),
+                      mk_pair(mk_small_numeral(8*qbyte), `8`))) in
+    let nib = if hi then mk_binop `DIV` v `16` else mk_binop `MOD` v `16` in
+    mk_eq(lhs, mk_comb(`word:num->byte`, nib)) in
+  prove(mk_forall(`q:int128`, end_itlist (curry mk_conj) (map mk_cj (0--15))),
+    GEN_TAC THEN
+    REWRITE_TAC[usimd16;usimd8;usimd4;usimd2;
+                DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_BLAST);;
+
+let F0SUB_BYTES_HI =
+  let eta_c = rand(rator(rand(rator(lhand(hd(conjuncts(snd(strip_forall(concl F0SUB_BYTES))))))))) in
+  let simd2sub = `\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2` in
+  let mk_cj off =
+    let lhs = mk_comb(mk_comb(`word_subword:int256->num#num->byte`,
+                list_mk_comb(`simd2:(int128->int128->int128)->int256->int256->int256`,
+                             [simd2sub; eta_c; `f:int256`])),
+                mk_pair(mk_small_numeral off, `8`)) in
+    let rhs = mk_comb(mk_comb(`word_sub:byte->byte->byte`,`word 4:byte`),
+                mk_comb(mk_comb(`word_subword:int256->num#num->byte`,`f:int256`),
+                        mk_pair(mk_small_numeral off,`8`))) in
+    mk_eq(lhs,rhs) in
+  prove(mk_forall(`f:int256`, end_itlist (curry mk_conj) (map (fun i -> mk_cj (128+8*i)) (0--15))),
+    GEN_TAC THEN REWRITE_TAC[simd2;simd16;simd8;simd4] THEN
+    SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+             DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+    CONV_TAC(DEPTH_CONV WORD_RED_CONV) THEN
+    SIMP_TAC[WORD_SUBWORD_SUBWORD;DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;
+             DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[WORD_SUBWORD_BYTE_ID]);;
+
+let F1BND_BYTES_HI =
+  let bnd_c = rand(rand(rator(lhand(hd(conjuncts(snd(strip_forall(concl F1BND_BYTES)))))))) in
+  let simd2sub = `\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2` in
+  let mk_cj off =
+    let lhs = mk_comb(mk_comb(`word_subword:int256->num#num->byte`,
+                list_mk_comb(`simd2:(int128->int128->int128)->int256->int256->int256`,
+                             [simd2sub; `f:int256`; bnd_c])),
+                mk_pair(mk_small_numeral off, `8`)) in
+    let rhs = mk_comb(mk_comb(`word_sub:byte->byte->byte`,
+                mk_comb(mk_comb(`word_subword:int256->num#num->byte`,`f:int256`),
+                        mk_pair(mk_small_numeral off,`8`))),
+                `word 9:byte`) in
+    mk_eq(lhs,rhs) in
+  prove(mk_forall(`f:int256`, end_itlist (curry mk_conj) (map (fun i -> mk_cj (128+8*i)) (0--15))),
+    GEN_TAC THEN REWRITE_TAC[simd2;simd16;simd8;simd4] THEN
+    SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+             DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+    CONV_TAC(DEPTH_CONV WORD_RED_CONV) THEN
+    SIMP_TAC[WORD_SUBWORD_SUBWORD;DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;
+             DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[WORD_SUBWORD_BYTE_ID]);;
+
+(* High-lane gather/mask NIB composites (analogues of SUBITER_GATHER_NIB /     *)
+(* SUBITER_MASK_NIB for f0sub/f1bnd bytes 16..31 = chunk bytes 8..15).         *)
+let SUBITER_GATHER_NIB_HI =
+  let f0sub_full = rand(rator(lhand(hd(conjuncts(snd(strip_forall(concl SUBITER_GATHER_NIB))))))) in
+  let mk_g_cj bi =
+    let off = 128 + 8*bi in
+    let qbyte = 8 + bi/2 in
+    let hi = (bi mod 2 = 1) in
+    let lhs = mk_comb(mk_comb(`word_subword:int256->num#num->byte`, f0sub_full),
+                      mk_pair(mk_small_numeral off,`8`)) in
+    let v = mk_comb(`val:byte->num`, mk_comb(mk_comb(`word_subword:int128->num#num->byte`,`q:int128`),
+                      mk_pair(mk_small_numeral(8*qbyte),`8`))) in
+    let nib = if hi then mk_binop `DIV` v `16` else mk_binop `MOD` v `16` in
+    mk_eq(lhs, mk_comb(mk_comb(`word_sub:byte->byte->byte`,`word 4:byte`),
+                       mk_comb(`word:num->byte`,nib))) in
+  prove(mk_forall(`q:int128`, end_itlist (curry mk_conj) (map mk_g_cj (0--15))),
+    GEN_TAC THEN REWRITE_TAC[F0SUB_BYTES_HI; F0NIB_BYTES_HI]);;
+
+let SUBITER_MASK_NIB_HI =
+  let f1bnd_full = rand(rator(rand(lhand(hd(conjuncts(snd(strip_forall(concl SUBITER_MASK_NIB)))))))) in
+  let mk_m_cj bi =
+    let off = 128 + 8*bi in
+    let qbyte = 8 + bi/2 in
+    let hi = (bi mod 2 = 1) in
+    let lhs = vsubst [f1bnd_full,`FB:int256`; mk_small_numeral off,`P:num`]
+                `bit 7 (word_subword (FB:int256) (P,8):byte)` in
+    let v = mk_comb(`val:byte->num`, mk_comb(mk_comb(`word_subword:int128->num#num->byte`,`q:int128`),
+                      mk_pair(mk_small_numeral(8*qbyte),`8`))) in
+    let nib = if hi then mk_binop `DIV` v `16` else mk_binop `MOD` v `16` in
+    mk_eq(lhs, mk_binop `(<):num->num->bool` nib `9`) in
+  prove(mk_forall(`q:int128`, end_itlist (curry mk_conj) (map mk_m_cj (0--15))),
+    GEN_TAC THEN REWRITE_TAC[F1BND_BYTES_HI; F0NIB_BYTES_HI] THEN
+    MAP_EVERY (fun bk -> ASSUME_TAC(REWRITE_RULE[DIMINDEX_8]
+       (ISPEC (subst[mk_small_numeral bk,`B:num`] `word_subword (q:int128) (B,8):byte`) VAL_BOUND)))
+      [64;72;80;88;96;104;112;120] THEN
+    REPEAT CONJ_TAC THEN MATCH_MP_TAC SIGN_NIB THEN ASM_ARITH_TAC);;
+
+(* ------------------------------------------------------------------------- *)
+(* Per-sub-iter store-value lemmas for sub-iters 2, 3, 4 (sub-iter 1 is       *)
+(* SUBITER1_VALUE above).  Sub-iter k stores REJ_SAMPLE_ETA4_BYTES of chunk   *)
+(* bytes [4(k-1)..4(k-1)+3].  The gather source g is the appropriate 128-bit  *)
+(* lane of f0sub:                                                             *)
+(*   k=2: word_subword f0sub (64,128)   (vpsrldq $8 of the low lane)          *)
+(*   k=3: word_subword f0sub (128,128)  (vextracti128 $1, high lane)          *)
+(*   k=4: word_subword f0sub (192,128)  (vpsrldq $8 of the high lane)         *)
+(* k=2 uses the low-half NIB lemmas, k=3/4 the HI ones.                       *)
+let SUBITER2_VALUE, SUBITER3_VALUE, SUBITER4_VALUE =
+  let mk_subiter k lanebase gnib mnib =
+    let qb i = 8*(4*(k-1)+i) in
+    let f0sub = rand(rator(lhand(hd(conjuncts(snd(strip_forall(concl SUBITER_GATHER_NIB))))))) in
+    let g_term = mk_comb(mk_comb(`word_subword:int256->num#num->int128`, f0sub),
+                         mk_pair(mk_small_numeral lanebase, `128`)) in
+    let f1b = rand(rator(rand(lhand(hd(conjuncts(snd(strip_forall(concl SUBITER_MASK_NIB)))))))) in
+    let bk j = vsubst [f1b,`FB:int256`; mk_small_numeral(lanebase+8*j),`P:num`]
+                 `bitval(bit 7 (word_subword (FB:int256) (P,8):byte))` in
+    let summ = end_itlist (fun a b -> mk_binop `(+):num->num->num` a b)
+      (List.map2 (fun c j -> if c=1 then bk j else mk_binop `( * ):num->num->num` (mk_small_numeral c) (bk j))
+         [1;2;4;8;16;32;64;128] (0--7)) in
+    let m_term = mk_comb(`word:num->byte`, summ) in
+    let byteterm i = mk_comb(mk_comb(`word_subword:int128->num#num->byte`,`q:int128`),
+                             mk_pair(mk_small_numeral(qb i), `8`)) in
+    let sis = SPECL [g_term; m_term; byteterm 0; byteterm 1; byteterm 2; byteterm 3] SUBITER_STORE_SPEC in
+    let stmt = mk_forall(`q:int128`, rand(concl sis)) in
+    let pl i hi =
+      let v = mk_comb(`val:byte->num`, byteterm i) in
+      let nib = if hi then mk_binop `DIV` v `16` else mk_binop `MOD` v `16` in
+      mk_binop `(<):num->num->bool` nib `9` in
+    let plist = mk_abs(`k:num`,
+      let lst = end_itlist (fun a b -> mk_binop `CONS:bool->(bool)list->(bool)list` a b)
+         (List.concat (map (fun i -> [pl i false; pl i true]) (0--3)) @ [`[]:(bool)list`]) in
+      mk_comb(mk_comb(`EL:num->(bool)list->bool`,`k:num`), lst)) in
+    prove(stmt,
+      GEN_TAC THEN MATCH_MP_TAC SUBITER_STORE_SPEC THEN CONJ_TAC THENL
+       [REPEAT STRIP_TAC THEN
+        FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+          (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+        CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[mnib] THEN
+        W(fun (asl,w) ->
+           let n = rand(rator(lhand w)) in
+           MP_TAC(SPECL [plist; n] MASK_LOW_BIT) THEN
+           CONV_TAC(DEPTH_CONV BETA_CONV) THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+           ANTS_TAC THENL [ARITH_TAC; DISCH_THEN MATCH_ACCEPT_TAC]);
+        REPEAT STRIP_TAC THEN
+        FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+          (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+        CONV_TAC NUM_REDUCE_CONV THEN
+        SIMP_TAC[WORD_SUBWORD_SUBWORD; DIMINDEX_128; DIMINDEX_256; ARITH] THEN
+        CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+        REWRITE_TAC[gnib]]) in
+  mk_subiter 2 64  SUBITER_GATHER_NIB    SUBITER_MASK_NIB,
+  mk_subiter 3 128 SUBITER_GATHER_NIB_HI SUBITER_MASK_NIB_HI,
+  mk_subiter 4 192 SUBITER_GATHER_NIB_HI SUBITER_MASK_NIB_HI;;
+
 (* Address simplification: the simulator's `word_add buf (word(1 * val ...))`*)
 (* form arising from VPMOVZXBW addressing reduces to `word_add buf (word(16*i))` *)
 (* given i <= 7 (which holds because 16 * i <= 256).                         *)
