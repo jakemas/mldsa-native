@@ -2291,6 +2291,19 @@ let VPSLLW_VPOR_VPAND_INT16_NIBBLES = prove
        [ASM_ARITH_TAC; ALL_TAC; ALL_TAC; ALL_TAC; ALL_TAC] THEN
       ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV]]);;
 
+(* Form bridge: the simulator's vpmovzxbw output (a flat word_join of 16     *)
+(* word_zx(word_subword q (8k,8)) lanes, after the stepper composes the       *)
+(* nested usimd subwords) equals usimd16 word_zx q. As a rewrite it folds the *)
+(* stepped YMM0 (load) back into usimd16 form so F0NIB_BYTES applies. Defined *)
+(* via the usimd-unfold + WORD_SUBWORD_SUBWORD-compose conversion (GSYM), so  *)
+(* its LHS is exactly the flat form the simulator emits.                      *)
+let VPMOVZXBW_FLAT = GSYM
+  ((REWRITE_CONV[usimd16;usimd8;usimd4;usimd2] THENC ONCE_DEPTH_CONV BETA_CONV THENC
+    SIMP_CONV[WORD_SUBWORD_SUBWORD; DIMINDEX_8; DIMINDEX_16; DIMINDEX_32;
+              DIMINDEX_64; DIMINDEX_128; DIMINDEX_256; ARITH] THENC
+    NUM_REDUCE_CONV)
+   `usimd16 (\b:byte. word_zx b:int16) (q:int128):int256`);;
+
 (* Byte structure of the full nibble-extraction SIMD chain (vpmovzxbw +
    vpsllw $4 + vpor + vpand mask) against the CONCRETE 0x0F0F0F0F broadcast
    constant carried in the loop invariant (YMM2). Output byte 2j = low
