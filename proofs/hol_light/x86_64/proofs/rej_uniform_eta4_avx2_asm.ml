@@ -2441,6 +2441,72 @@ let F0SUB_BYTES = prove
   CONV_TAC NUM_REDUCE_CONV THEN
   REWRITE_TAC[WORD_SUBWORD_BYTE_ID]);;
 
+(* Byte structure of the bound vpsubb (vpsubb bound, f0, f1 = f0nib - bound)   *)
+(* against the CONCRETE bound=0x09090909 broadcast (YMM4): output byte j =      *)
+(* word_sub (input byte j) (word 9). With F0NIB_BYTES (nibbles < 16) and        *)
+(* VPSUBB_SIGN_BIT_LT_9, bit 7 of this byte <=> nibble_j < 9 -- the input to    *)
+(* vpmovmskb, giving SUBITER_STORE_SPEC's mask hypothesis.                      *)
+let F1BND_BYTES = prove
+ (`!f:int256.
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (0,8):byte =
+     word_sub (word_subword (f:int256) (0,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (8,8):byte =
+     word_sub (word_subword (f:int256) (8,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (16,8):byte =
+     word_sub (word_subword (f:int256) (16,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (24,8):byte =
+     word_sub (word_subword (f:int256) (24,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (32,8):byte =
+     word_sub (word_subword (f:int256) (32,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (40,8):byte =
+     word_sub (word_subword (f:int256) (40,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (48,8):byte =
+     word_sub (word_subword (f:int256) (48,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (56,8):byte =
+     word_sub (word_subword (f:int256) (56,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (64,8):byte =
+     word_sub (word_subword (f:int256) (64,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (72,8):byte =
+     word_sub (word_subword (f:int256) (72,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (80,8):byte =
+     word_sub (word_subword (f:int256) (80,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (88,8):byte =
+     word_sub (word_subword (f:int256) (88,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (96,8):byte =
+     word_sub (word_subword (f:int256) (96,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (104,8):byte =
+     word_sub (word_subword (f:int256) (104,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (112,8):byte =
+     word_sub (word_subword (f:int256) (112,8):byte) (word 9)) /\
+    (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (f:int256) (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (120,8):byte =
+     word_sub (word_subword (f:int256) (120,8):byte) (word 9))`,
+  GEN_TAC THEN
+  REWRITE_TAC[simd2;simd16;simd8;simd4;simd2] THEN
+  SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+           DIMINDEX_8; DIMINDEX_16; DIMINDEX_32; DIMINDEX_64; DIMINDEX_128;
+           DIMINDEX_256; ARITH] THEN
+  CONV_TAC(DEPTH_CONV WORD_RED_CONV) THEN
+  SIMP_TAC[WORD_SUBWORD_SUBWORD; DIMINDEX_8; DIMINDEX_16; DIMINDEX_32;
+           DIMINDEX_64; DIMINDEX_128; DIMINDEX_256; ARITH] THEN
+  CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[WORD_SUBWORD_BYTE_ID]);;
+
 (* Address simplification: the simulator's `word_add buf (word(1 * val ...))`*)
 (* form arising from VPMOVZXBW addressing reduces to `word_add buf (word(16*i))` *)
 (* given i <= 7 (which holds because 16 * i <= 256).                         *)
