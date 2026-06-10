@@ -2554,6 +2554,117 @@ let SUBITER_GATHER_NIB = prove
      word_sub (word 4) (word(val(word_subword (q:int128) (56,8):byte) DIV 16)))`,
   GEN_TAC THEN REWRITE_TAC[F0SUB_BYTES; F0NIB_BYTES]);;
 
+let SIGN_NIB = prove
+ (`!n. n < 16 ==> (bit 7 (word_sub (word n:byte) (word 9)) <=> n < 9)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(word n:byte) = n` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_8] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  MP_TAC(ISPEC `word n:byte` VPSUBB_SIGN_BIT_LT_9) THEN ASM_REWRITE_TAC[]);;
+
+let SUBITER_MASK_NIB = prove
+ (`!q:int128.
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (0,8):byte) <=>
+     val(word_subword (q:int128) (0,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (8,8):byte) <=>
+     val(word_subword (q:int128) (0,8):byte) DIV 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (16,8):byte) <=>
+     val(word_subword (q:int128) (8,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (24,8):byte) <=>
+     val(word_subword (q:int128) (8,8):byte) DIV 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (32,8):byte) <=>
+     val(word_subword (q:int128) (16,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (40,8):byte) <=>
+     val(word_subword (q:int128) (16,8):byte) DIV 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (48,8):byte) <=>
+     val(word_subword (q:int128) (24,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (56,8):byte) <=>
+     val(word_subword (q:int128) (24,8):byte) DIV 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (64,8):byte) <=>
+     val(word_subword (q:int128) (32,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (72,8):byte) <=>
+     val(word_subword (q:int128) (32,8):byte) DIV 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (80,8):byte) <=>
+     val(word_subword (q:int128) (40,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (88,8):byte) <=>
+     val(word_subword (q:int128) (40,8):byte) DIV 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (96,8):byte) <=>
+     val(word_subword (q:int128) (48,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (104,8):byte) <=>
+     val(word_subword (q:int128) (48,8):byte) DIV 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (112,8):byte) <=>
+     val(word_subword (q:int128) (56,8):byte) MOD 16 < 9) /\
+    (bit 7 (word_subword (simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
+        (word_and (word_or (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256)
+                   (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) (q:int128):int256):int256))
+          (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256))
+        (word 4086779620140571603184858294424279100703646517610843436686738259102816340233:int256)) (120,8):byte) <=>
+     val(word_subword (q:int128) (56,8):byte) DIV 16 < 9)`,
+  GEN_TAC THEN REWRITE_TAC[F1BND_BYTES; F0NIB_BYTES] THEN
+  MAP_EVERY (fun bk -> ASSUME_TAC(REWRITE_RULE[DIMINDEX_8]
+     (ISPEC (subst[mk_small_numeral bk,`B:num`] `word_subword (q:int128) (B,8):byte`) VAL_BOUND)))
+    [0;8;16;24;32;40;48;56] THEN
+  REPEAT CONJ_TAC THEN MATCH_MP_TAC SIGN_NIB THEN ASM_ARITH_TAC);;
+
 (* Byte structure of the bound vpsubb (vpsubb bound, f0, f1 = f0nib - bound)   *)
 (* against the CONCRETE bound=0x09090909 broadcast (YMM4): output byte j =      *)
 (* word_sub (input byte j) (word 9). With F0NIB_BYTES (nibbles < 16) and        *)
