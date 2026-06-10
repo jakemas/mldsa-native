@@ -2507,6 +2507,25 @@ let F1BND_BYTES = prove
   CONV_TAC NUM_REDUCE_CONV THEN
   REWRITE_TAC[WORD_SUBWORD_BYTE_ID]);;
 
+(* Bit j (j<8) of the byte synthesised by the low half of VPMOVMSKB (the 8     *)
+(* low sign-bits packed as bitval sum) equals the j-th predicate. With         *)
+(* F1BND_BYTES + VPSUBB_SIGN_BIT_LT_9 this gives mask bit j <=> nibble_j < 9 -- *)
+(* the movzbl-extracted sub-iter mask, completing SUBITER_STORE_SPEC's mask     *)
+(* hypothesis.                                                                  *)
+let MASK_LOW_BIT = prove
+ (`!(p:num->bool) j. j < 8
+     ==> (bit j (word(bitval(p 0) + 2 * bitval(p 1) + 4 * bitval(p 2) + 8 * bitval(p 3) +
+                       16 * bitval(p 4) + 32 * bitval(p 5) + 64 * bitval(p 6) +
+                       128 * bitval(p 7)):byte) <=> p j)`,
+  REPEAT GEN_TAC THEN
+  DISCH_THEN(DISJ_CASES_TAC o MATCH_MP (ARITH_RULE
+    `j < 8 ==> j=0\\/j=1\\/j=2\\/j=3\\/j=4\\/j=5\\/j=6\\/j=7`)) THEN
+  POP_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC) THEN
+  MAP_EVERY BOOL_CASES_TAC [`(p:num->bool) 0`;`(p:num->bool) 1`;`(p:num->bool) 2`;`(p:num->bool) 3`;
+                            `(p:num->bool) 4`;`(p:num->bool) 5`;`(p:num->bool) 6`;`(p:num->bool) 7`] THEN
+  REWRITE_TAC[BITVAL_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  CONV_TAC(DEPTH_CONV BIT_WORD_CONV) THEN REWRITE_TAC[]);;
+
 (* Address simplification: the simulator's `word_add buf (word(1 * val ...))`*)
 (* form arising from VPMOVZXBW addressing reduces to `word_add buf (word(16*i))` *)
 (* given i <= 7 (which holds because 16 * i <= 256).                         *)
