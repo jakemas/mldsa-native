@@ -1302,6 +1302,74 @@ let PSHUFB_ACCEPTED_PREFIX_NUM = prove
   MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_8] THEN
   FIRST_ASSUM(MP_TAC o MATCH_MP ACC_IDX_LT_8) THEN ARITH_TAC);;
 
+(* Helper: the low/high nibble of a byte, taken modulo 256 (the byte-width    *)
+(* image after word-construction), is < 16. Used to discharge SUBITER_STORE's *)
+(* val < 16 side conditions for the 8 nibbles of a 4-byte block.              *)
+let NIB_BOUNDS = prove
+ (`!b:byte. val b MOD 16 MOD 256 < 16 /\ (val b DIV 16) MOD 256 < 16`,
+  GEN_TAC THEN MP_TAC(ISPEC `b:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN
+  STRIP_TAC THEN
+  SUBGOAL_THEN `val(b:byte) DIV 16 < 16` ASSUME_TAC THENL
+   [SIMP_TAC[RDIV_LT_EQ; ARITH_EQ] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  REWRITE_TAC[MOD_LT_EQ; ARITH_EQ] THEN
+  CONJ_TAC THENL
+   [MATCH_MP_TAC LET_TRANS THEN EXISTS_TAC `val(b:byte) MOD 16` THEN
+    REWRITE_TAC[MOD_LE; LE_REFL] THEN ARITH_TAC;
+    ASM_SIMP_TAC[MOD_LT; ARITH_RULE `x < 16 ==> x < 256`]]);;
+
+(* SUBITER STORE (byte form) — the keystone per-sub-iter value lemma.         *)
+(* Given a gather vector g whose byte j is (4 - nibble_j) and a mask m whose  *)
+(* bit j is the accept predicate (nibble_j < 9), the first popcount(m) =      *)
+(* |ACC_IDX m| bytes of the pshufb compaction equal MAP (4-.) over the        *)
+(* accepted nibbles. Composes PSHUFB_ACCEPTED_PREFIX_NUM (gather at ACC_IDX)  *)
+(* with GATHER_FILTER_MAP_IDX_8 (gather = filter), discharging the index      *)
+(* hypotheses from the two per-lane assumptions. This is instantiated four    *)
+(* times (one per sub-iter) in the loop body, with nibbles = the 8 nibbles    *)
+(* of the sub-iter's 4-byte block.                                            *)
+let SUBITER_STORE = prove
+ (`!(g:int128) (m:byte) (n0:byte) n1 n2 n3 n4 n5 n6 n7.
+    val n0 < 16 /\ val n1 < 16 /\ val n2 < 16 /\ val n3 < 16 /\
+    val n4 < 16 /\ val n5 < 16 /\ val n6 < 16 /\ val n7 < 16 /\
+    (!j. j < 8 ==> (bit j m <=> val(EL j [n0;n1;n2;n3;n4;n5;n6;n7]:byte) < 9)) /\
+    (!j. j < 8 ==> word_subword g (8*j,8):byte =
+                   word_sub (word 4) (EL j [n0;n1;n2;n3;n4;n5;n6;n7]))
+    ==> SUB_LIST(0, LENGTH(ACC_IDX m)) (PSHUFB_OUT_LIST g m) =
+        MAP (\x:byte. word_sub (word 4) x)
+            (FILTER (\x:byte. val x < 9) [n0;n1;n2;n3;n4;n5;n6;n7])`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`g:int128`; `val(m:byte)`] PSHUFB_ACCEPTED_PREFIX_NUM) THEN
+  REWRITE_TAC[WORD_VAL] THEN
+  ANTS_TAC THENL
+   [MP_TAC(ISPEC `m:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN ARITH_TAC;
+    DISCH_THEN SUBST1_TAC] THEN
+  REWRITE_TAC[ACC_IDX] THEN
+  MP_TAC(ISPECL [`\x:byte. word_sub (word 4) x:byte`; `\x:byte. val x < 9`;
+                 `n0:byte`;`n1:byte`;`n2:byte`;`n3:byte`;`n4:byte`;`n5:byte`;`n6:byte`;`n7:byte`]
+                GATHER_FILTER_MAP_IDX_8) THEN
+  REWRITE_TAC[] THEN DISCH_THEN(SUBST1_TAC o SYM) THEN
+  SUBGOAL_THEN
+   `(!j. MEM j [0;1;2;3;4;5;6;7] ==> (bit j (m:byte) <=> val(EL j [n0;n1;n2;n3;n4;n5;n6;n7]:byte) < 9)) /\
+    (!j. MEM j [0;1;2;3;4;5;6;7] ==> word_subword (g:int128) (8*j,8):byte =
+                   word_sub (word 4) (EL j [n0;n1;n2;n3;n4;n5;n6;n7]))`
+   MP_TAC THENL
+   [CONJ_TAC THEN GEN_TAC THEN REWRITE_TAC[MEM] THEN
+    STRIP_TAC THEN ASM_REWRITE_TAC[] THEN FIRST_X_ASSUM MATCH_MP_TAC THEN ARITH_TAC;
+    ALL_TAC] THEN
+  STRIP_TAC THEN
+  REWRITE_TAC[FILTER; MAP; MEM] THEN
+  REPEAT(FIRST_X_ASSUM(fun th ->
+    if is_forall(concl th) then
+      (MP_TAC(SPEC `0` th) THEN MP_TAC(SPEC `1` th) THEN MP_TAC(SPEC `2` th) THEN
+       MP_TAC(SPEC `3` th) THEN MP_TAC(SPEC `4` th) THEN MP_TAC(SPEC `5` th) THEN
+       MP_TAC(SPEC `6` th) THEN MP_TAC(SPEC `7` th))
+    else NO_TAC)) THEN
+  REWRITE_TAC[MEM] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REPEAT STRIP_TAC THEN ASM_REWRITE_TAC[] THEN
+  RULE_ASSUM_TAC(CONV_RULE(DEPTH_CONV EL_CONV)) THEN
+  CONV_TAC(DEPTH_CONV EL_CONV) THEN ASM_REWRITE_TAC[] THEN
+  REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP]) THEN
+  CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC(DEPTH_CONV EL_CONV) THEN ASM_REWRITE_TAC[]);;
+
 (* VPMOVSXBD per-lane: the 8 int32 lanes of the sign-extend of an int64 (the *)
 (* low 64 bits of the pshufb result) are word_sx of the 8 input bytes. Same  *)
 (* structural-isolation recipe as PSHUFB_LANE_EXTRACT (word_sx is a fixed    *)
