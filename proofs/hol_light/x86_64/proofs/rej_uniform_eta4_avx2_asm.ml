@@ -2773,6 +2773,61 @@ let MASK_ACCEPT = prove
   MATCH_MP_TAC VPSUBB_SIGN_BIT_LT_9 THEN
   FIRST_X_ASSUM MATCH_MP_TAC THEN ASM_REWRITE_TAC[]);;
 
+(* ------------------------------------------------------------------------- *)
+(* SUBITER1_VALUE: the per-sub-iter store-value capstone.  For the standard   *)
+(* SIMD chain on a free 128-bit chunk `q` (vpmovzxbw / vpsllw$4 / vpor /      *)
+(* vpand 0x0F mask / vpsubb eta / vpsubb bound / vpmovmskb / vextracti128$0 / *)
+(* vpshufb / vpmovsxbd), the 8-int32 vmovdqu store truncated to the accepted  *)
+(* count equals REJ_SAMPLE_ETA4_BYTES of the four chunk bytes.  The gather    *)
+(* source `g` is `word_subword f0sub (0,128):int128` (the vextracti128 $0 low *)
+(* lane), reconciling SUBITER_STORE_SPEC's int128 `g` with the int256 chain.  *)
+(* Both SUBITER_STORE_SPEC hypotheses discharge automatically: the mask via   *)
+(* SUBITER_MASK_NIB + MASK_LOW_BIT, the gather via WORD_SUBWORD_SUBWORD        *)
+(* (low-lane byte = full-chain byte for j<8) + SUBITER_GATHER_NIB.            *)
+(* The statement is built programmatically from the proven NIB lemmas so it   *)
+(* tracks their exact simulator forms.                                        *)
+let SUBITER1_VALUE =
+  let f0sub = rand(rator(lhand(hd(conjuncts(snd(strip_forall(concl SUBITER_GATHER_NIB))))))) in
+  let g_term = mk_comb(mk_comb(`word_subword:int256->num#num->int128`, f0sub), `(0,128)`) in
+  let f1b = rand(rator(rand(lhand(hd(conjuncts(snd(strip_forall(concl SUBITER_MASK_NIB)))))))) in
+  let bk k = vsubst [f1b,`FB:int256`; mk_small_numeral(8*k),`P:num`]
+               `bitval(bit 7 (word_subword (FB:int256) (P,8):byte))` in
+  let summ = end_itlist (fun a b -> mk_binop `(+):num->num->num` a b)
+    (List.map2 (fun c k -> if c=1 then bk k else mk_binop `( * ):num->num->num` (mk_small_numeral c) (bk k))
+       [1;2;4;8;16;32;64;128] (0--7)) in
+  let m_term = mk_comb(`word:num->byte`, summ) in
+  let sis = SPECL [g_term; m_term;
+                   `word_subword (q:int128) (0,8):byte`; `word_subword (q:int128) (8,8):byte`;
+                   `word_subword (q:int128) (16,8):byte`; `word_subword (q:int128) (24,8):byte`]
+              SUBITER_STORE_SPEC in
+  let stmt = mk_forall(`q:int128`, rand(concl sis)) in
+  let plist = `\k:num. EL k [val (word_subword (q:int128) (0,8):byte) MOD 16 < 9;
+                           val (word_subword (q:int128) (0,8):byte) DIV 16 < 9;
+                           val (word_subword (q:int128) (8,8):byte) MOD 16 < 9;
+                           val (word_subword (q:int128) (8,8):byte) DIV 16 < 9;
+                           val (word_subword (q:int128) (16,8):byte) MOD 16 < 9;
+                           val (word_subword (q:int128) (16,8):byte) DIV 16 < 9;
+                           val (word_subword (q:int128) (24,8):byte) MOD 16 < 9;
+                           val (word_subword (q:int128) (24,8):byte) DIV 16 < 9]` in
+  prove(stmt,
+    GEN_TAC THEN MATCH_MP_TAC SUBITER_STORE_SPEC THEN CONJ_TAC THENL
+     [REPEAT STRIP_TAC THEN
+      FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+        (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+      CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[SUBITER_MASK_NIB] THEN
+      W(fun (asl,w) ->
+         let n = rand(rator(lhand w)) in
+         MP_TAC(SPECL [plist; n] MASK_LOW_BIT) THEN
+         CONV_TAC(DEPTH_CONV BETA_CONV) THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+         ANTS_TAC THENL [ARITH_TAC; DISCH_THEN MATCH_ACCEPT_TAC]);
+      REPEAT STRIP_TAC THEN
+      FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+        (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+      CONV_TAC NUM_REDUCE_CONV THEN
+      SIMP_TAC[WORD_SUBWORD_SUBWORD; DIMINDEX_128; DIMINDEX_256; ARITH] THEN
+      CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+      REWRITE_TAC[SUBITER_GATHER_NIB]]);;
+
 (* Address simplification: the simulator's `word_add buf (word(1 * val ...))`*)
 (* form arising from VPMOVZXBW addressing reduces to `word_add buf (word(16*i))` *)
 (* given i <= 7 (which holds because 16 * i <= 256).                         *)
