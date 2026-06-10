@@ -1255,6 +1255,24 @@ let ETA_GATHER = prove
   REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP; FILTER]) THEN
   CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[]);;
 
+(* Generalization of GATHER_FILTERED_IDX_8 post-composed with a value map f:   *)
+(* gathering f-of-element at the positions where P holds equals MAP f of the   *)
+(* P-FILTERed list. Used at the vmovdqu store where the gathered (compacted)   *)
+(* bytes are sign-extended (f = word_sx) and the predicate P selects accepted  *)
+(* nibbles. Keeps the value function f and predicate P independent, matching   *)
+(* the asm where pshufb gathers the (4-nibble) vector while the mask predicate *)
+(* is on the nibble value.                                                     *)
+let GATHER_FILTER_MAP_IDX_8 = prove
+ (`!(f:byte->A) (P:byte->bool) n0 n1 n2 n3 n4 n5 n6 n7.
+     MAP (\j. f (EL j [n0;n1;n2;n3;n4;n5;n6;n7]:byte))
+         (FILTER (\j. P (EL j [n0;n1;n2;n3;n4;n5;n6;n7])) [0;1;2;3;4;5;6;7]) =
+     MAP f (FILTER P [n0;n1;n2;n3;n4;n5;n6;n7])`,
+  REPEAT GEN_TAC THEN
+  MP_TAC(ISPECL [`P:byte->bool`; `n0:byte`;`n1:byte`;`n2:byte`;`n3:byte`;
+                 `n4:byte`;`n5:byte`;`n6:byte`;`n7:byte`] GATHER_FILTERED_IDX_8) THEN
+  DISCH_THEN(fun th -> GEN_REWRITE_TAC (RAND_CONV o RAND_CONV) [SYM th]) THEN
+  REWRITE_TAC[GSYM MAP_o; o_DEF]);;
+
 (* The full abstract pshufb-compaction-correctness statement: the first     *)
 (* popcount(m) = |ACC_IDX m| output bytes of the table-driven VPSHUFB are   *)
 (* exactly the source bytes g at the accepted nibble positions ACC_IDX m,   *)
