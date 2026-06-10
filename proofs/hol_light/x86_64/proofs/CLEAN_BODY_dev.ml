@@ -112,6 +112,28 @@
      SUBGOAL_THEN (lane lemmas VPSLLW_VPOR_VPAND_INT16_NIBBLES,
      VPSUBB_SIGN_BIT_LT_9, VMOVMSKB_BYTE_EQ_64) rather than leaving opaque. *)
 
+  (* ---- SUB-ITER 1 store chain — VALIDATED end-to-end through s17 ---- *)
+  X86_VSTEPS_TAC EXEC (14--14) THEN              (* vmovq (tab,r10,8)->ymm6 *)
+  REABBREV_TAC `tab1 = read YMM6 s14` THEN PURGE_STALE_STATES_TAC ["s13"] THEN
+  X86_VSTEPS_TAC EXEC (15--15) THEN              (* vpshufb ymm6,xmm5->ymm6 *)
+  RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM5 s12 = g0a`;
+                              ASSUME `read YMM6 s14 = tab1`]) THEN
+  REABBREV_TAC `pshuf1 = read YMM6 s15` THEN PURGE_STALE_STATES_TAC ["s14"] THEN
+  X86_VSTEPS_TAC EXEC (16--16) THEN              (* vpmovsxbd ymm6->ymm1 *)
+  RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM6 s15 = pshuf1`]) THEN
+  REABBREV_TAC `sx1 = read YMM1 s16` THEN PURGE_STALE_STATES_TAC ["s15"] THEN
+  X86_STEPS_TAC EXEC (17--17)                    (* vmovdqu ymm1->(out,rax,4) STORE OK *)
+  (* ^ store resolves via nonoverlapping; RIP past pc+136. ENTIRE sub-iter
+     pipeline (load->nibble->bound/mask->extract->gather->compact->sx->store)
+     now VALIDATED. Remaining CLEAN_BODY = mechanical: popcnt/add (instr 18-21,
+     RAX_BOUND_AFTER_POPCNT_ADD_DIRECT), mid-guard ja (JA_NOT_TAKEN_LE +
+     CLEAN_BLOCK_BOUNDS, no fire on clean iter), sub-iters 2/3/4 (same shape,
+     g0 via vpsrldq/vextracti128 $1), then jmp pc+56, ENSURES_FINAL_STATE.
+     For VALUE correctness use SUBGOAL spec-forms (not opaque REABBREV) +
+     SUBITER store lemmas (ETA_GATHER, GATHER_FILTER_MAP_IDX_8,
+     PSHUFB_ACCEPTED_PREFIX_NUM, VPMOVSXBD_LANE_EXTRACT, WORD_SUB_4_NIBBLE_*).
+     Compose 4 via SUBITER_OUTLEN_STEP_4 + REJ_SAMPLE_ETA4_BYTES_16_AS_4. *)
+
 (* TODO next session:
    - For VALUE correctness (not just shape), replace opaque REABBREV of the
      nibble/sub vectors with SUBGOAL_THEN `read YMMk sN = word(num_of_wordlist
