@@ -1489,8 +1489,8 @@ let FILTER_VAL_WORD_NIB = prove
 (* j = (4 - nibble_j), the int32 vmovdqu store of one sub-iter (truncated to   *)
 (* popcount(m) lanes) equals REJ_SAMPLE_ETA4_BYTES [b0;b1;b2;b3]. The two      *)
 (* hypotheses are discharged in the loop body from the proven nibble-extract   *)
-(* (VPSLLW_VPOR_VPAND_*) and bound/mask (VPSUBB_SIGN_BIT_LT_9, VMOVMSKB_*)      *)
-(* lane lemmas. Instantiated 4x (one per sub-iter) and composed via            *)
+(* and bound/mask (VPSUBB_SIGN_BIT_LT_9, VMOVMSKB) lane lemmas.                 *)
+(* Instantiated 4x (one per sub-iter) and composed via                         *)
 (* REJ_SAMPLE_ETA4_BYTES_16_AS_4 to give the full iteration's contribution.    *)
 let SUBITER_STORE_SPEC = prove
  (`!(g:int128) (m:byte) (b0:byte) b1 b2 b3.
@@ -2519,7 +2519,7 @@ let MASK_LOW_BIT = prove
                        128 * bitval(p 7)):byte) <=> p j)`,
   REPEAT GEN_TAC THEN
   DISCH_THEN(DISJ_CASES_TAC o MATCH_MP (ARITH_RULE
-    `j < 8 ==> j=0\\/j=1\\/j=2\\/j=3\\/j=4\\/j=5\\/j=6\\/j=7`)) THEN
+    `j < 8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
   POP_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC) THEN
   MAP_EVERY BOOL_CASES_TAC [`(p:num->bool) 0`;`(p:num->bool) 1`;`(p:num->bool) 2`;`(p:num->bool) 3`;
                             `(p:num->bool) 4`;`(p:num->bool) 5`;`(p:num->bool) 6`;`(p:num->bool) 7`] THEN
