@@ -1227,6 +1227,34 @@ let GATHER_FILTERED_IDX_8 = prove
   REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP; FILTER]) THEN
   CONV_TAC(DEPTH_CONV EL_CONV) THEN REWRITE_TAC[]);;
 
+(* Per-sub-iter value bridge: gathering source bytes g at the accepted       *)
+(* positions ACC_IDX m (mask m) equals FILTERing the 8 source bytes by the   *)
+(* accept predicate val(.) < 9, PROVIDED the mask bit j agrees with that     *)
+(* predicate on byte j. This connects the pshufb-compaction output (indexed  *)
+(* by ACC_IDX m) to the functional spec's FILTER over byte values. The       *)
+(* hypothesis is discharged at the call site from the vpsubb/vpmovmskb mask  *)
+(* construction (bit j of the mask = sign bit of nibble_j - 9 = (nibble<9)). *)
+let ETA_GATHER = prove
+ (`!(g:int128) (m:byte).
+     (!j. j < 8 ==> (bit j m <=> val(word_subword g (8*j,8):byte) < 9))
+     ==> MAP (\j:num. word_subword g (8*j,8):byte) (ACC_IDX m) =
+         FILTER (\b:byte. val b < 9)
+                [word_subword g (0,8); word_subword g (8,8);
+                 word_subword g (16,8); word_subword g (24,8);
+                 word_subword g (32,8); word_subword g (40,8);
+                 word_subword g (48,8); word_subword g (56,8)]`,
+  REPEAT STRIP_TAC THEN
+  FIRST_ASSUM(fun th ->
+    MP_TAC(SPEC `0` th) THEN MP_TAC(SPEC `1` th) THEN MP_TAC(SPEC `2` th) THEN
+    MP_TAC(SPEC `3` th) THEN MP_TAC(SPEC `4` th) THEN MP_TAC(SPEC `5` th) THEN
+    MP_TAC(SPEC `6` th) THEN MP_TAC(SPEC `7` th)) THEN
+  CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[MULT_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[ACC_IDX; FILTER; MAP] THEN ASM_REWRITE_TAC[] THEN
+  CONV_TAC NUM_REDUCE_CONV THEN
+  REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP; FILTER]) THEN
+  CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[]);;
+
 (* The full abstract pshufb-compaction-correctness statement: the first     *)
 (* popcount(m) = |ACC_IDX m| output bytes of the table-driven VPSHUFB are   *)
 (* exactly the source bytes g at the accepted nibble positions ACC_IDX m,   *)
