@@ -87,7 +87,30 @@
   REABBREV_TAC `mask8 = read R8 s11` THEN PURGE_STALE_STATES_TAC ["s10"]
   (* ^ VALIDATED end-to-end: lands pc+110 (first vextracti128), ~46 assums,
      registers abbreviated: f0load,f1shl,f0or,f0nib,f1bnd,f0sub,mask8.
-     f0sub holds the (4-nibble) byte vector; mask8 the popcount mask. *) *)
+     f0sub holds the (4-nibble) byte vector; mask8 the popcount mask. *)
+
+  (* ---- SUB-ITER 1 (pc+110.. ) — VALIDATED through s13 ---- *)
+  X86_VSTEPS_TAC EXEC (12--12) THEN          (* vextracti128 $0 f0sub -> xmm5 *)
+  RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM0 s11 = f0sub`]) THEN
+  REABBREV_TAC `g0a = read YMM5 s12` THEN PURGE_STALE_STATES_TAC ["s11"] THEN
+  X86_STEPS_TAC EXEC (13--13)                (* movzbl r8b->r10d : R10 = mask8 & 0xff *)
+  (* mask8 (s11 R8) def = word_zx(word(sum 2^k * bitval(bit 7 (word_subword
+     f1bnd (8k,8))))) — the vpmovmskb sign bits of the 32 bound-cmp lanes.
+     g0a = low 128 bits of f0sub (the (4-nibble) bytes 0..15).
+     NEXT: 14 vmovq (tab,r10,8)->xmm6 [table[mask8&0xff], the gather control];
+           15 vpshufb xmm6,g0a->xmm6 [compact accepted (4-nibble) bytes to front];
+           16 vpmovsxbd xmm6->ymm1 [8 bytes sx-> 8 int32];
+           17 vmovdqu ymm1->(out,rax,4) [store 8 int32 at r[outlen0]].
+     STORE VALUE to prove = REJ_SAMPLE_ETA4_BYTES [b0;b1;b2;b3] (first 4-byte
+     block) padded to 8 lanes; LENGTH advance = popcount(mask8&0xff)
+     = LENGTH(REJ_NIBBLES_ETA4 [b0;b1;b2;b3]). Apply at store:
+       PSHUFB_ACCEPTED_PREFIX_NUM (compaction=gather at ACC_IDX),
+       VPMOVSXBD_LANE_EXTRACT (per-lane sx),
+       ETA_GATHER / GATHER_FILTER_MAP_IDX_8 (gather=FILTER),
+       WORD_SUB_4_NIBBLE_INT32_AS_SX (4-nibble byte sx = spec coeff).
+     For value-correctness, FIRST establish f0sub & mask8 in spec form via
+     SUBGOAL_THEN (lane lemmas VPSLLW_VPOR_VPAND_INT16_NIBBLES,
+     VPSUBB_SIGN_BIT_LT_9, VMOVMSKB_BYTE_EQ_64) rather than leaving opaque. *)
 
 (* TODO next session:
    - For VALUE correctness (not just shape), replace opaque REABBREV of the
