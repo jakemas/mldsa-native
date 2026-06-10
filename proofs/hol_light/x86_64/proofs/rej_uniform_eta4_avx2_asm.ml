@@ -2526,6 +2526,29 @@ let MASK_LOW_BIT = prove
   REWRITE_TAC[BITVAL_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN
   CONV_TAC(DEPTH_CONV BIT_WORD_CONV) THEN REWRITE_TAC[]);;
 
+(* Mask-accept composition: the vpmovmskb low byte, built from the sign bits   *)
+(* of the bound vpsubb (nibble - 9), has bit j <=> nibble_j < 9 when each       *)
+(* nibble < 16. Composes MASK_LOW_BIT (bit extraction) + VPSUBB_SIGN_BIT_LT_9.  *)
+(* This is exactly SUBITER_STORE_SPEC's mask hypothesis (with n = the block's   *)
+(* 8 nibbles).                                                                  *)
+let MASK_ACCEPT = prove
+ (`!(n:num->byte) j. j < 8 /\ (!k. k < 8 ==> val(n k) < 16)
+     ==> ((bit j (word(bitval(bit 7 (word_sub (n 0) (word 9):byte)) +
+                      2 * bitval(bit 7 (word_sub (n 1) (word 9):byte)) +
+                      4 * bitval(bit 7 (word_sub (n 2) (word 9):byte)) +
+                      8 * bitval(bit 7 (word_sub (n 3) (word 9):byte)) +
+                      16 * bitval(bit 7 (word_sub (n 4) (word 9):byte)) +
+                      32 * bitval(bit 7 (word_sub (n 5) (word 9):byte)) +
+                      64 * bitval(bit 7 (word_sub (n 6) (word 9):byte)) +
+                      128 * bitval(bit 7 (word_sub (n 7) (word 9):byte))):byte))
+          <=> val(n j) < 9)`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  MP_TAC(SPECL [`\k. bit 7 (word_sub ((n:num->byte) k) (word 9):byte)`; `j:num`] MASK_LOW_BIT) THEN
+  ASM_REWRITE_TAC[] THEN CONV_TAC(DEPTH_CONV BETA_CONV) THEN
+  DISCH_THEN SUBST1_TAC THEN
+  MATCH_MP_TAC VPSUBB_SIGN_BIT_LT_9 THEN
+  FIRST_X_ASSUM MATCH_MP_TAC THEN ASM_REWRITE_TAC[]);;
+
 (* Address simplification: the simulator's `word_add buf (word(1 * val ...))`*)
 (* form arising from VPMOVZXBW addressing reduces to `word_add buf (word(16*i))` *)
 (* given i <= 7 (which holds because 16 * i <= 256).                         *)
