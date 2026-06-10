@@ -1449,6 +1449,98 @@ let SUBITER_STORE_INT32 = prove
   REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[MAP]) THEN
   ASM_SIMP_TAC[SX_SUB4_BYTE_EQ_INT16]);;
 
+(* Push a num->int16 word-cast through MAP/FILTER: gathering f over the int16  *)
+(* P-filtered (word-cast) list equals gathering (f o word) over the numeric    *)
+(* (P o word)-filtered list. Used to convert SUBITER_STORE_INT32's numeric     *)
+(* nibble form to the spec's int16 NIBBLES_OF_BYTES form.                      *)
+let MAP_FILTER_WORD_NIB = prove
+ (`!(f:int16->int32) P (L:num list).
+     (!v. MEM v L ==> v < 16)
+     ==> MAP f (FILTER P (MAP (word:num->int16) L)) =
+         MAP (\v. f(word v)) (FILTER (\v. P(word v)) L)`,
+  GEN_TAC THEN GEN_TAC THEN LIST_INDUCT_TAC THEN
+  REWRITE_TAC[MAP; FILTER] THEN
+  REPEAT STRIP_TAC THEN
+  FIRST_X_ASSUM(MP_TAC o check (is_imp o concl)) THEN
+  ANTS_TAC THENL [ASM_MESON_TAC[MEM]; ALL_TAC] THEN
+  DISCH_THEN(fun th -> ASM_CASES_TAC `(P:int16->bool)(word h)` THEN
+    ASM_REWRITE_TAC[MAP; th]));;
+
+(* For a list of nibble values (< 16), the int16-word accept predicate         *)
+(* val(word v) < 9 agrees with the numeric v < 9, so the two FILTERs coincide. *)
+let FILTER_VAL_WORD_NIB = prove
+ (`!L:num list. (!v. MEM v L ==> v < 16)
+     ==> FILTER (\v. val(word v:int16) < 9) L = FILTER (\v. v < 9) L`,
+  LIST_INDUCT_TAC THEN REWRITE_TAC[FILTER; MEM] THEN
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(word h:int16) = h` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_16] THEN
+    FIRST_X_ASSUM(MP_TAC o SPEC `h:num`) THEN REWRITE_TAC[MEM] THEN ARITH_TAC;
+    ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `FILTER (\v. val(word v:int16) < 9) t = FILTER (\v. v < 9) t`
+    SUBST1_TAC THENL
+   [FIRST_X_ASSUM MATCH_MP_TAC THEN ASM_MESON_TAC[MEM]; ALL_TAC] THEN
+  REWRITE_TAC[]);;
+
+(* SUBITER STORE (spec form) — the body-ready per-sub-iter store lemma.        *)
+(* Given mask m = accept predicate on the 8 nibbles of a 4-byte block          *)
+(* [b0;b1;b2;b3] (in NIBBLES_OF_BYTES order: lo,hi per byte) and gather byte   *)
+(* j = (4 - nibble_j), the int32 vmovdqu store of one sub-iter (truncated to   *)
+(* popcount(m) lanes) equals REJ_SAMPLE_ETA4_BYTES [b0;b1;b2;b3]. The two      *)
+(* hypotheses are discharged in the loop body from the proven nibble-extract   *)
+(* (VPSLLW_VPOR_VPAND_*) and bound/mask (VPSUBB_SIGN_BIT_LT_9, VMOVMSKB_*)      *)
+(* lane lemmas. Instantiated 4x (one per sub-iter) and composed via            *)
+(* REJ_SAMPLE_ETA4_BYTES_16_AS_4 to give the full iteration's contribution.    *)
+let SUBITER_STORE_SPEC = prove
+ (`!(g:int128) (m:byte) (b0:byte) b1 b2 b3.
+    (!j. j < 8 ==> (bit j m <=>
+        EL j [val b0 MOD 16; val b0 DIV 16; val b1 MOD 16; val b1 DIV 16;
+              val b2 MOD 16; val b2 DIV 16; val b3 MOD 16; val b3 DIV 16] < 9)) /\
+    (!j. j < 8 ==> word_subword g (8*j,8):byte =
+        word_sub (word 4) (word(EL j [val b0 MOD 16; val b0 DIV 16; val b1 MOD 16; val b1 DIV 16;
+              val b2 MOD 16; val b2 DIV 16; val b3 MOD 16; val b3 DIV 16]):byte))
+    ==> MAP (\b:byte. word_sx b:int32)
+            (SUB_LIST(0, LENGTH(ACC_IDX m)) (PSHUFB_OUT_LIST g m)) =
+        REJ_SAMPLE_ETA4_BYTES [b0;b1;b2;b3]`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`g:int128`; `m:byte`;
+    `val(b0:byte) MOD 16`; `val(b0:byte) DIV 16`; `val(b1:byte) MOD 16`; `val(b1:byte) DIV 16`;
+    `val(b2:byte) MOD 16`; `val(b2:byte) DIV 16`; `val(b3:byte) MOD 16`; `val(b3:byte) DIV 16`]
+    SUBITER_STORE_INT32) THEN
+  ANTS_TAC THENL
+   [ASM_REWRITE_TAC[] THEN
+    MP_TAC(ISPEC `b0:byte` VAL_BOUND) THEN MP_TAC(ISPEC `b1:byte` VAL_BOUND) THEN
+    MP_TAC(ISPEC `b2:byte` VAL_BOUND) THEN MP_TAC(ISPEC `b3:byte` VAL_BOUND) THEN
+    REWRITE_TAC[DIMINDEX_8] THEN
+    SIMP_TAC[MOD_LT_EQ; ARITH_EQ; RDIV_LT_EQ] THEN REPEAT STRIP_TAC THEN ASM_ARITH_TAC;
+    DISCH_THEN SUBST1_TAC] THEN
+  REWRITE_TAC[REJ_SAMPLE_ETA4_BYTES; REJ_NIBBLES_ETA4] THEN
+  SUBGOAL_THEN
+   `NIBBLES_OF_BYTES [b0;b1;b2;b3] =
+    MAP (word:num->int16)
+        [val b0 MOD 16; val b0 DIV 16; val b1 MOD 16; val b1 DIV 16;
+         val b2 MOD 16; val b2 DIV 16; val b3 MOD 16; val b3 DIV 16]`
+   SUBST1_TAC THENL
+   [REWRITE_TAC[NIBBLES_OF_BYTES; NIBBLE_PAIR; APPEND; MAP]; ALL_TAC] THEN
+  MP_TAC(ISPECL [`\x:int16. word_sx(word_sub (word 4) x):int32`; `\x:int16. val x < 9`;
+    `[val(b0:byte) MOD 16; val b0 DIV 16; val(b1:byte) MOD 16; val b1 DIV 16;
+      val(b2:byte) MOD 16; val b2 DIV 16; val(b3:byte) MOD 16; val b3 DIV 16]`]
+    MAP_FILTER_WORD_NIB) THEN
+  SUBGOAL_THEN
+   `!v. MEM v [val(b0:byte) MOD 16; val b0 DIV 16; val(b1:byte) MOD 16; val b1 DIV 16;
+               val(b2:byte) MOD 16; val b2 DIV 16; val(b3:byte) MOD 16; val b3 DIV 16]
+        ==> v < 16`
+   ASSUME_TAC THENL
+   [REWRITE_TAC[MEM] THEN REPEAT STRIP_TAC THEN ASM_REWRITE_TAC[] THEN
+    MP_TAC(ISPEC `b0:byte` VAL_BOUND) THEN MP_TAC(ISPEC `b1:byte` VAL_BOUND) THEN
+    MP_TAC(ISPEC `b2:byte` VAL_BOUND) THEN MP_TAC(ISPEC `b3:byte` VAL_BOUND) THEN
+    REWRITE_TAC[DIMINDEX_8] THEN
+    SIMP_TAC[MOD_LT_EQ; ARITH_EQ; RDIV_LT_EQ] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN
+  REWRITE_TAC[] THEN
+  ASM_SIMP_TAC[FILTER_VAL_WORD_NIB]);;
+
 (* VPMOVSXBD per-lane: the 8 int32 lanes of the sign-extend of an int64 (the *)
 (* low 64 bits of the pshufb result) are word_sx of the 8 input bytes. Same  *)
 (* structural-isolation recipe as PSHUFB_LANE_EXTRACT (word_sx is a fixed    *)
