@@ -269,4 +269,21 @@ e(PURGE_STALE_STATES_TAC ["s14"]);;
    from asm 28 (gather) + asm 29 (maskbit) via MASK_LOW_BIT. Then popcnt/RAX, mid-guard,
    sub-iters 2-4, jmp pc+56. *)
 
+(* Step 16: vpmovsxbd ymm6->ymm1 (8 bytes sx -> 8 int32).  Step 17: vmovdqu ymm1->(res,rax,4)
+   STORE — succeeds (RAX=word outlen0, outlen0<=248, so the bytes256 write at res+4*outlen0
+   is in-bounds & nonoverlapping).  SUB-ITER 1 PIPELINE FULLY STEPPED THROUGH THE STORE in the
+   actual CLEAN_BODY context. *)
+e(X86_VSTEPS_TAC EXEC (16--16));;
+e(X86_STEPS_TAC EXEC (17--17));;
+e(PURGE_STALE_STATES_TAC ["s15";"s16"]);;
+(* probe checkpoint 7: at s17/pc+136. Sub-iter 1 stored its int32 block at res+4*outlen0.
+   The stored value = MAP word_sx (vpmovsxbd of vpshufb(g0a, table[mask&0xff])); by
+   PSHUFB_ACCEPTED_PREFIX_NUM + VPMOVSXBD_LANE_EXTRACT + the proven gather/maskbit facts +
+   SUBITER_STORE_SPEC it equals REJ_SAMPLE_ETA4_BYTES[chunk0 bytes 0..3].
+   NEXT: popcnt r10d->r9d + add eax (RAX += popcount = +len of block) via
+   RAX_BOUND_AFTER_POPCNT_ADD_DIRECT; shr r8d,8 (mask>>=8); add ecx,4 (RCX=16i+4); mid-guard
+   ja (JA_NOT_TAKEN_LE + CLEAN_BLOCK_BOUNDS, no fire on clean iter); then sub-iters 2,3,4
+   (vpsrldq/vextracti128 $1 for g, mask>>8/16/24, HI lemmas for 3,4); compose via
+   REJ_SAMPLE_ETA4_BYTES_16_AS_4; add ecx,4 (final RCX=16(i+1)); jmp pc+56; ENSURES_FINAL_STATE. *)
+
 
