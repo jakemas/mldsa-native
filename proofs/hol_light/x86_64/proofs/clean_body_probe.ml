@@ -239,4 +239,15 @@ e(PURGE_STALE_STATES_TAC ["s11"]);;
    The gather hyp `word_subword (word_subword f0sub (0,128))(8j,8)=word_sub 4(word_subword fn(8j,8))`
    is exactly word_subword (read YMM5 s12) (8j,8) = ..., ready for SUBITER_STORE_SPEC. *)
 
+(* Step 13: movzbl r8b -> r10d.  mask8 (R8 s11) is the clean bitval-sum over the OPAQUE f1bnd
+   (~1.8k chars), so R10 s13 = its low byte stays small.  Keep R10's value (do NOT opaque-abbrev
+   -- we need it as the table index = mask low byte for SUBITER_STORE_SPEC's m). *)
+e(X86_STEPS_TAC EXEC (13--13));;
+e(PURGE_STALE_STATES_TAC ["s12"]);;
+(* probe checkpoint 4: at s13/pc+116. mask8 = word_zx(word(Sum_{k<32} 2^k bitval(bit 7
+   (word_subword f1bnd (8k,8))))); R10 s13 = movzbl of mask8 = low 8 bits.  Both store hyps live.
+   NEXT: the table index r10 selects table[r10] (a control vector); vmovq/vpshufb compact g0a,
+   vpmovsxbd, vmovdqu store -> MATCH_MP_TAC SUBITER_STORE_SPEC with g=word_subword f0sub(0,128),
+   m = word_subword mask8 (0,8) (bit j m <=> nibble_j<9 via maskbit forall + MASK_LOW_BIT). *)
+
 
