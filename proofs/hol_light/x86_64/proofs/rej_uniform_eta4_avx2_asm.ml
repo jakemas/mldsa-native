@@ -1048,6 +1048,10 @@ let WORDLIST_OF_NUM_VAL_EQ = prove
   X_GEN_TAC `j:num` THEN STRIP_TAC THEN
   ASM_SIMP_TAC[EL_WORDLIST_OF_NUM_VAL] THEN ASM_MESON_TAC[]);;
 
+(* Full-width subword identity (used to close the per-lane vpmovsxbd extraction:
+   word_subword (word_sx b:int32) (0,32) = word_sx b, with the word_sx(..) taken as W). *)
+let SW_ID = prove(`!W:int32. word_subword W (0,32):int32 = W`, GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
 (* Store-value memory lemma: the first k int32 lanes of a 256-bit store at A read back as
    num_of_wordlist L, where L is the int32 list whose elements are V's lanes.  This is the
    bridge from the vmovdqu writeback to the REJ_SAMPLE block: with V = vpmovsxbd output and
