@@ -1052,6 +1052,15 @@ let WORDLIST_OF_NUM_VAL_EQ = prove
    word_subword (word_sx b:int32) (0,32) = word_sx b, with the word_sx(..) taken as W). *)
 let SW_ID = prove(`!W:int32. word_subword W (0,32):int32 = W`, GEN_TAC THEN CONV_TAC WORD_BLAST);;
 
+(* NOTE: in the clean loop body, the stepped vpmovsxbd output `read YMM1 sN` (a word_join
+   nest of word_sx over the low-8 bytes of word_zx(word_zx pshuf)) is rewritten to the
+   canonical `usimd8 (\b. word_sx b) (word_zx(word_zx pshuf))` form in-context (where the
+   term is fully typed by the simulator) via `REWRITE_TAC[usimd8;usimd4;usimd2] THEN
+   SIMP_TAC[WORD_SUBWORD_SUBWORD;DIMINDEX_*;ARITH] THEN CONV_TAC NUM_REDUCE_CONV`, after which
+   the committed VPMOVSXBD_LANE_EXTRACT gives each int32 lane = word_sx of the pshuf byte.
+   (Validated 2026-06-11; kept as an in-body step rather than a standalone lemma because the
+   word_join associativity/widths are simulator-determined.) *)
+
 (* Store-value memory lemma: the first k int32 lanes of a 256-bit store at A read back as
    num_of_wordlist L, where L is the int32 list whose elements are V's lanes.  This is the
    bridge from the vmovdqu writeback to the REJ_SAMPLE block: with V = vpmovsxbd output and
