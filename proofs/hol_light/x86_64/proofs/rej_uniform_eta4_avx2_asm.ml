@@ -3040,6 +3040,52 @@ let SUBITER_OUTLEN_STEP_4 = prove
     REWRITE_TAC[th3; th2; th1; REJ_NIBBLES_ETA4_APPEND; LENGTH_APPEND]))) THEN
   ARITH_TAC);;
 
+(* ------------------------------------------------------------------------- *)
+(* Mid-guard / partial-outlen lemmas for CLEAN_BODY's sub-iter `ja` checks.   *)
+(* After sub-iter 1 (which appends the first 4-byte block), the running       *)
+(* count RAX = outlen0 + |accepted nibbles in block 0| = niblen(16i+4); the   *)
+(* mid-iter `ja $248` must NOT fire on a clean iteration (i+1 < N), i.e. that  *)
+(* partial count is <= 248 because it is a prefix of niblen(16(i+1)) <= 248.   *)
+
+(* The partial outlen after sub-iter 1: outlen0 + block-0 accept count equals  *)
+(* the full int32-list length of the prefix SUB_LIST(0,16i+4).                 *)
+let SUBITER1_PARTIAL_OUTLEN = prove
+ (`!inlist i.
+     LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist):int32 list) +
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i,4) inlist):int16 list) =
+     LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+4) inlist):int32 list)`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
+  SUBGOAL_THEN `SUB_LIST(0,16*i+4) (inlist:byte list) =
+                APPEND (SUB_LIST(0,16*i) inlist) (SUB_LIST(16*i,4) inlist)`
+   SUBST1_TAC THENL
+   [MP_TAC(ISPECL [`inlist:byte list`; `16*i`; `4`; `0`] SUB_LIST_SPLIT) THEN
+    REWRITE_TAC[ADD_CLAUSES] THEN DISCH_THEN(fun th -> REWRITE_TAC[th]);
+    REWRITE_TAC[REJ_NIBBLES_ETA4_APPEND; LENGTH_APPEND]]);;
+
+(* Generic partial-prefix bound: for any d <= 16, the nibble-length of the     *)
+(* prefix SUB_LIST(0,16i+d) is <= niblen(16(i+1)), hence <= 248 on clean iters.*)
+let SUBITER_PARTIAL_OUTLEN_LE = prove
+ (`!inlist i d.
+     d <= 16 /\
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*(i+1)) inlist):int16 list) <= 248
+     ==> LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*i+d) inlist):int16 list) <= 248`,
+  REPEAT STRIP_TAC THEN
+  TRANS_TAC LE_TRANS `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*(i+1)) inlist):int16 list)` THEN
+  ASM_REWRITE_TAC[] THEN
+  MP_TAC(ISPECL [`inlist:byte list`; `16*i+d`; `16*(i+1)`] NIBLEN_PREFIX_MONO) THEN
+  ANTS_TAC THENL [UNDISCH_TAC `d <= 16` THEN ARITH_TAC; REWRITE_TAC[]]);;
+
+(* The int32-list (RAX) form of the partial-outlen bound, for the mid-guard.   *)
+let SUBITER1_PARTIAL_OUTLEN_LE = prove
+ (`!inlist i.
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*(i+1)) inlist):int16 list) <= 248
+     ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+4) inlist):int32 list) <= 248`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
+  MP_TAC(SPECL [`inlist:byte list`; `i:num`; `4`] SUBITER_PARTIAL_OUTLEN_LE) THEN
+  ASM_REWRITE_TAC[ARITH]);;
+
 (* List-decomposition lemmas: a 4-byte list is [b0;b1;b2;b3] for some bytes,*)
 (* a 16-byte list similarly. Used to introduce the named bytes b_k for the *)
 (* per-sub-iter input chunk SUB_LIST(16*i, 16) inlist.                     *)
