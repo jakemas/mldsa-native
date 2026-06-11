@@ -1020,6 +1020,49 @@ let BYTES256_PREFIX_WORDLIST = prove
   SUBGOAL_THEN `MIN 32 (4*k) = 4*k` SUBST1_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   DISCH_THEN(SUBST1_TAC o SYM) THEN REFL_TAC);;
 
+(* The j-th lane (j<k<=8) of wordlist_of_num k (val V) is word_subword V (32j,32). *)
+let EL_WORDLIST_OF_NUM_VAL = prove
+ (`!(V:int256) k j. j < k
+     ==> EL j (wordlist_of_num k (val V):int32 list) = word_subword V (32*j,32)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`wordlist_of_num k (val(V:int256)):int32 list`; `j:num`] EL_NUM_OF_WORDLIST) THEN
+  REWRITE_TAC[LENGTH_WORDLIST_OF_NUM; NUM_OF_WORDLIST_OF_NUM; DIMINDEX_32] THEN
+  ANTS_TAC THENL [ASM_REWRITE_TAC[]; ALL_TAC] THEN
+  DISCH_THEN SUBST1_TAC THEN
+  REWRITE_TAC[word_subword; DIMINDEX_32; DIMINDEX_256] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  MATCH_MP_TAC(MESON[] `(word x:int32) = word y ==> word x:int32 = word y`) THEN
+  ONCE_REWRITE_TAC[GSYM WORD_MOD_SIZE] THEN REWRITE_TAC[DIMINDEX_32] THEN AP_TERM_TAC THEN
+  REWRITE_TAC[ARITH_RULE `4294967296 = 2 EXP 32`; MOD_MOD_REFL] THEN
+  REWRITE_TAC[DIV_MOD; GSYM EXP_ADD; MOD_MOD_EXP_MIN] THEN
+  SUBGOAL_THEN `MIN (32 * k) (32 * j + 32) = 32 * j + 32` SUBST1_TAC THENL
+   [ASM_ARITH_TAC; REWRITE_TAC[]]);;
+
+(* If V's first k lanes match L's elements (and LENGTH L = k <= 8), the low-k-lane digit
+   list of V is exactly L. *)
+let WORDLIST_OF_NUM_VAL_EQ = prove
+ (`!(V:int256) (L:int32 list) k.
+      LENGTH L = k /\ (!j. j < k ==> word_subword V (32*j,32) = EL j L)
+      ==> wordlist_of_num k (val V) = L`,
+  REPEAT STRIP_TAC THEN ONCE_REWRITE_TAC[LIST_EQ] THEN
+  REWRITE_TAC[LENGTH_WORDLIST_OF_NUM] THEN ASM_REWRITE_TAC[] THEN
+  X_GEN_TAC `j:num` THEN STRIP_TAC THEN
+  ASM_SIMP_TAC[EL_WORDLIST_OF_NUM_VAL] THEN ASM_MESON_TAC[]);;
+
+(* Store-value memory lemma: the first k int32 lanes of a 256-bit store at A read back as
+   num_of_wordlist L, where L is the int32 list whose elements are V's lanes.  This is the
+   bridge from the vmovdqu writeback to the REJ_SAMPLE block: with V = vpmovsxbd output and
+   L = REJ_SAMPLE_ETA4_BYTES block (via SUBITER1_VALUE + VPMOVSXBD_LANE_EXTRACT giving
+   word_subword V (32j,32) = EL j L), this yields the sub-iter store memory postcondition. *)
+let STORE_BYTES256_NUM_OF_WORDLIST = prove
+ (`!(A:int64) (V:int256) (L:int32 list) k (s:x86state).
+      read(memory:>bytes256 A) s = V /\ LENGTH L = k /\ k <= 8 /\
+      (!j. j < k ==> word_subword V (32*j,32):int32 = EL j L)
+      ==> read(memory:>bytes(A, 4*k)) s = num_of_wordlist L`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`A:int64`; `V:int256`; `k:num`; `s:x86state`] BYTES256_PREFIX_WORDLIST) THEN
+  ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN
+  AP_TERM_TAC THEN MATCH_MP_TAC WORDLIST_OF_NUM_VAL_EQ THEN ASM_REWRITE_TAC[]);;
+
 (* The vmovq table load: with the table memory invariant, reading the 8-byte entry at
    index r (byte offset 8r) yields word(num_of_wordlist(TABLE_ENTRY(word r))) — i.e. the
    gather-control word for mask r.  Bridge (1) of the sub-iter store value. *)
