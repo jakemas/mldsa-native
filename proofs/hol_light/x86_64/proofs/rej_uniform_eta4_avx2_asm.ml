@@ -1202,6 +1202,36 @@ let SUB_LIST_0_MAP = prove
   GEN_TAC THEN INDUCT_TAC THEN REWRITE_TAC[SUB_LIST_CLAUSES; MAP] THEN
   LIST_INDUCT_TAC THEN ASM_REWRITE_TAC[SUB_LIST_CLAUSES; MAP]);;
 
+(* Nesting/composition of SUB_LIST: a window of width n starting at a, taken from
+   a window of width m starting at b, equals the width-n window starting at b+a in
+   the original list (provided the inner window covers it and lies inside the list).
+   Used to slice the 4-byte sub-iter block SUB_LIST(16i,4) out of the 16-byte chunk
+   SUB_LIST(16i,16) when threading per-block facts in the clean loop body. *)
+let SUB_LIST_NEST = prove
+ (`!a n b m l:A list. a + n <= m /\ b + m <= LENGTH l
+     ==> SUB_LIST(a,n)(SUB_LIST(b,m) l) = SUB_LIST(b+a,n) l`,
+  REPEAT STRIP_TAC THEN ONCE_REWRITE_TAC[LIST_EQ] THEN
+  REWRITE_TAC[LENGTH_SUB_LIST] THEN CONJ_TAC THENL
+   [ASM_ARITH_TAC; ALL_TAC] THEN
+  X_GEN_TAC `j:num` THEN STRIP_TAC THEN
+  SUBGOAL_THEN `j < n` ASSUME_TAC THENL
+   [POP_ASSUM MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `LENGTH(SUB_LIST(b,m) (l:A list)) = m` ASSUME_TAC THENL
+   [REWRITE_TAC[LENGTH_SUB_LIST] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN
+    `EL j (SUB_LIST(a,n)(SUB_LIST(b,m) (l:A list))) = EL (a+j) (SUB_LIST(b,m) l)`
+    SUBST1_TAC THENL
+   [MATCH_MP_TAC EL_SUB_LIST THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN
+    `EL (a+j) (SUB_LIST(b,m) (l:A list)) = EL (b+(a+j)) l`
+    SUBST1_TAC THENL
+   [MATCH_MP_TAC EL_SUB_LIST THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN
+    `EL j (SUB_LIST(b+a,n) (l:A list)) = EL ((b+a)+j) l`
+    SUBST1_TAC THENL
+   [MATCH_MP_TAC EL_SUB_LIST THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  AP_THM_TAC THEN AP_TERM_TAC THEN ARITH_TAC);;
+
 let ACC_IDX_LT_8 = prove
  (`!m x. MEM x (ACC_IDX m) ==> x < 8`,
   REWRITE_TAC[ACC_IDX] THEN REPEAT GEN_TAC THEN
