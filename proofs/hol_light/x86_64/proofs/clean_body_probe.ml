@@ -245,9 +245,18 @@ e(PURGE_STALE_STATES_TAC ["s11"]);;
 e(X86_STEPS_TAC EXEC (13--13));;
 e(PURGE_STALE_STATES_TAC ["s12"]);;
 (* probe checkpoint 4: at s13/pc+116. mask8 = word_zx(word(Sum_{k<32} 2^k bitval(bit 7
-   (word_subword f1bnd (8k,8))))); R10 s13 = movzbl of mask8 = low 8 bits.  Both store hyps live.
-   NEXT: the table index r10 selects table[r10] (a control vector); vmovq/vpshufb compact g0a,
-   vpmovsxbd, vmovdqu store -> MATCH_MP_TAC SUBITER_STORE_SPEC with g=word_subword f0sub(0,128),
-   m = word_subword mask8 (0,8) (bit j m <=> nibble_j<9 via maskbit forall + MASK_LOW_BIT). *)
+   (word_subword f1bnd (8k,8))))); R10 s13 = movzbl of mask8 = low 8 bits.  Both store hyps live. *)
+
+(* Step 14: vmovq (tab,r10,8) -> ymm6.  YMM6 s14 = read(memory table + 8*r10) — the gather
+   control vector table[mask&0xff] (small, 87 chars). *)
+e(X86_VSTEPS_TAC EXEC (14--14));;
+e(PURGE_STALE_STATES_TAC ["s13"]);;
+(* probe checkpoint 5: at s14/pc+~. YMM6 = table[r10] control vector. NEXT: step 15 vpshufb
+   ymm6,xmm5(g0a)->ymm6 = PSHUFB_OUT_LIST-form compaction; 16 vpmovsxbd ymm6->ymm1 (8 int32 sx);
+   17 vmovdqu ymm1->(res,rax,4) STORE.  At the store, the stored int32 list = MAP word_sx
+   (SUB_LIST(0,|ACC_IDX m|)(PSHUFB_OUT_LIST g m)) where g=g0a=word_subword f0sub(0,128),
+   m = mask low byte; connect the stepped pshufb to PSHUFB_OUT_LIST via the committed table
+   lemmas (PSHUFB_OUT_BYTE/TABLE_PREFIX_ACC/CTRL_BYTE_TABLE), then MATCH_MP_TAC SUBITER_STORE_SPEC
+   with the two proven hyps (gather asm 28 + maskbit asm 29 via MASK_LOW_BIT). *)
 
 
