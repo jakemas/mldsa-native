@@ -251,12 +251,22 @@ e(PURGE_STALE_STATES_TAC ["s12"]);;
    control vector table[mask&0xff] (small, 87 chars). *)
 e(X86_VSTEPS_TAC EXEC (14--14));;
 e(PURGE_STALE_STATES_TAC ["s13"]);;
-(* probe checkpoint 5: at s14/pc+~. YMM6 = table[r10] control vector. NEXT: step 15 vpshufb
-   ymm6,xmm5(g0a)->ymm6 = PSHUFB_OUT_LIST-form compaction; 16 vpmovsxbd ymm6->ymm1 (8 int32 sx);
-   17 vmovdqu ymm1->(res,rax,4) STORE.  At the store, the stored int32 list = MAP word_sx
-   (SUB_LIST(0,|ACC_IDX m|)(PSHUFB_OUT_LIST g m)) where g=g0a=word_subword f0sub(0,128),
-   m = mask low byte; connect the stepped pshufb to PSHUFB_OUT_LIST via the committed table
-   lemmas (PSHUFB_OUT_BYTE/TABLE_PREFIX_ACC/CTRL_BYTE_TABLE), then MATCH_MP_TAC SUBITER_STORE_SPEC
-   with the two proven hyps (gather asm 28 + maskbit asm 29 via MASK_LOW_BIT). *)
+(* probe checkpoint 5: at s14/pc+~. YMM6 = table[r10] control vector. *)
+
+(* Step 15: vpshufb ymm6,xmm5(g0a)->ymm6.  YMM6 s15 = the s2n pshufb model output (8031 chars):
+   per output lane = `if bit 7 (control byte) then word 0 else word_subword g0a (8*control,8)`
+   where control bytes come from table[r10] = read(memory table+8*r10). This is exactly the
+   form abstracted by PSHUFB_OUT_LIST g0a m / PSHUFB_OUT_BYTE. *)
+e(X86_VSTEPS_TAC EXEC (15--15));;
+e(PURGE_STALE_STATES_TAC ["s14"]);;
+(* probe checkpoint 6: at s15. YMM6 = vpshufb(g0a, table[mask&0xff]).  NEXT: 16 vpmovsxbd
+   ymm6->ymm1 (8 bytes sx -> 8 int32); 17 vmovdqu ymm1->(res,rax,4) STORE.
+   To close the store value: the committed PSHUFB_ACCEPTED_PREFIX_NUM proves the first
+   popcount(m) pshufb output bytes = MAP (\p. g0a.byte(8p,8)) (ACC_IDX m); compose with
+   VPMOVSXBD_LANE_EXTRACT (byte->int32 sx) + the gather fact (g0a byte = word_sub 4 nibble) +
+   SUBITER_STORE_SPEC to get stored list = REJ_SAMPLE_ETA4_BYTES[chunk0 bytes 0..3].
+   Equivalently MATCH_MP_TAC SUBITER_STORE_SPEC (SPECL g0a, mask-byte) and discharge its 2 hyps
+   from asm 28 (gather) + asm 29 (maskbit) via MASK_LOW_BIT. Then popcnt/RAX, mid-guard,
+   sub-iters 2-4, jmp pc+56. *)
 
 
