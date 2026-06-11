@@ -239,10 +239,11 @@ e(PURGE_STALE_STATES_TAC ["s11"]);;
    The gather hyp `word_subword (word_subword f0sub (0,128))(8j,8)=word_sub 4(word_subword fn(8j,8))`
    is exactly word_subword (read YMM5 s12) (8j,8) = ..., ready for SUBITER_STORE_SPEC. *)
 
-(* Step 13: movzbl r8b -> r10d.  Plain X86_STEPS (movzbl decodes fine; verbose VSTEPS does not
-   fire on it).  R10 s13 = movzbl of mask8 = low byte; its structural value is needed later for
-   the RAX bound at the mid-guard — that derivation is the next unit (use the s2n movzbl model
-   read R10 s13 = word_zx(word_subword(word_zx (read R8 s12))(0,8)) + read R8 s12=mask8). *)
+(* Step 13: movzbl r8b -> r10d.  R10 s13 (movzbl of mask8 low byte) is DISCARDED by X86_STEPS
+   (its value references prior-state R8); recovering it structurally (needed for the mid-guard
+   RAX bound) is the open mechanism — try GHOST_INTRO R8/R10 with correct syntax or REABBREV in a
+   verbose single-step.  For now the probe stops here (sub-iter 1 through counters validated
+   interactively; see memory reference_x86_body_restructure for the precise next step). *)
 e(X86_STEPS_TAC EXEC (13--13));;
 e(PURGE_STALE_STATES_TAC ["s12"]);;
 (* probe checkpoint 4: at s13/pc+116. mask8 = word_zx(word(Sum_{k<32} 2^k bitval(bit 7
