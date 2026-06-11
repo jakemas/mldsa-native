@@ -12,6 +12,28 @@ let PURGE_STALE_STATES_TAC names =
 
 let EXEC = MLDSA_REJ_UNIFORM_ETA4_EXEC;;
 
+(* ---- R10/MOVZX capture helper (2026-06-11). The movzbl r8b->r10d at step 13
+   is stepped with X86_VERBOSE_STEP_TAC (single state arg, keeps old-state reads,
+   unlike X86_STEPS_TAC which discards them). Verbose leaves R10 as
+   word_zx(word_zx(read (OPERAND8 (% r8b) (write RIP .. s12)) (write RIP .. s12)));
+   OP8_R8B_READ + COMPONENT_READ_OVER_WRITE_CONV reduce it to
+   word_zx(word_zx(word(val(read R8 s12) MOD 256))). ---- *)
+let OP8_R8B_READ = prove
+ (`!s:x86state. read (OPERAND8 (% r8b) s) s = word(val(read R8 s) MOD 256)`,
+  GEN_TAC THEN REWRITE_TAC[OPERAND8; r8b; GPR8; register_size; regsize] THEN
+  REWRITE_TAC[GSYM(NUM_EXP_CONV `2 EXP 8`)] THEN
+  ONCE_REWRITE_TAC[MESON[EXP; DIV_1] `x MOD 2 EXP n = x DIV 2 EXP 0 MOD 2 EXP n`] THEN
+  REWRITE_TAC[GSYM word_subword; READ_COMPONENT_COMPOSE; R8] THEN
+  REWRITE_TAC[bottom_32; bottom_16; bottom_8; bottomhalf; READ_SUBWORD] THEN
+  ONCE_REWRITE_TAC [WORD_EQ_BITS_ALT] THEN REWRITE_TAC[BIT_WORD_SUBWORD] THEN
+  CONV_TAC(ONCE_DEPTH_CONV DIMINDEX_CONV) THEN
+  CONV_TAC EXPAND_CASES_CONV THEN CONV_TAC NUM_REDUCE_CONV);;
+
+let MOVZBL_R10_CAPTURE_TAC : tactic =
+  RULE_ASSUM_TAC(CONV_RULE(
+    REWRITE_CONV[OP8_R8B_READ] THENC
+    ONCE_DEPTH_CONV COMPONENT_READ_OVER_WRITE_CONV));;
+
 (* Drop any assumption whose RHS (or the whole eq) contains a raw word_join on
    chunk0 byte-subwords -- used to delete the raw vpmovzxbw form once the
    usimd16 form has been established, preventing re-explosion. *)
@@ -240,68 +262,40 @@ e(PURGE_STALE_STATES_TAC ["s11"]);;
    The gather hyp `word_subword (word_subword f0sub (0,128))(8j,8)=word_sub 4(word_subword fn(8j,8))`
    is exactly word_subword (read YMM5 s12) (8j,8) = ..., ready for SUBITER_STORE_SPEC. *)
 
-(* Step 13: movzbl r8b -> r10d.  R10 s13 (movzbl of mask8 low byte) is DISCARDED by X86_STEPS
-   (its value references prior-state R8); recovering it structurally (needed for the mid-guard
-   RAX bound) is the open mechanism — try GHOST_INTRO R8/R10 with correct syntax or REABBREV in a
-   verbose single-step.  For now the probe stops here (sub-iter 1 through counters validated
-   interactively; see memory reference_x86_body_restructure for the precise next step). *)
-(* NOTE: neither X86_STEPS_TAC nor X86_VERBOSE_STEP_TAC emits a `read R10 s13 = ...`
-   equation for this MOVZX r10d,r8b — the s2n stepper does not surface the sub-register
-   write value here (deep stepper-internals issue, see memory). R10's value is needed
-   only inline in R9/RAX after the popcnt; the count is recoverable the PR1014 way
-   (SUBGOAL the popcnt result, don't depend on the discarded reg). *)
-e(X86_STEPS_TAC EXEC (13--13));;
-e(PURGE_STALE_STATES_TAC ["s12"]);;
-(* probe checkpoint 4: at s13/pc+116. mask8 = word_zx(word(Sum_{k<32} 2^k bitval(bit 7
-   (word_subword f1bnd (8k,8))))); R10 s13 = movzbl of mask8 = low 8 bits.  Both store hyps live. *)
+(* ---- SUB-ITER 1 store + counters — VALIDATED 2026-06-11 with R10 capture ---- *)
 
-(* Step 14: vmovq (tab,r10,8) -> ymm6.  YMM6 s14 = read(memory table + 8*r10) — the gather
-   control vector table[mask&0xff] (small, 87 chars). *)
+(* Step 13: movzbl r8b->r10d.  CRITICAL: step with X86_VERBOSE_STEP_TAC (keeps the
+   old-state read, unlike X86_STEPS which discards it), then MOVZBL_R10_CAPTURE_TAC
+   reduces OPERAND8(%r8b) to word(val(read R8 s12) MOD 256).  Then REABBREV r10v so
+   the popcnt result at s18 references the stable VAR r10v (survives DISCARD_OLDSTATE). *)
+(* Abbreviate read R8 s12 as mask8 FIRST so the movzbl result references the stable
+   VAR mask8 (not the discarded state s12) and survives DISCARD_OLDSTATE downstream. *)
+e(REABBREV_TAC `mask8 = read R8 s12`);;
+e(X86_VERBOSE_STEP_TAC EXEC "s13");;
+e(MOVZBL_R10_CAPTURE_TAC);;
+(* The capture re-introduces `read R8 s12` (via COMPONENT_READ_OVER_WRITE_CONV); fold it back
+   to the stable var mask8 so read R10 s13 = word_zx(word_zx(word(val mask8 MOD 256))) is
+   keyed ONLY on mask8 — it then survives DISCARD_OLDSTATE through the store, and the popcnt
+   result at s18 (popcount over R10) reduces to popcount of mask8's low byte. *)
+e(RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read R8 s12 = mask8`]));;
+
+(* Steps 14-17: vmovq table[r10]->xmm6 ; vpshufb ; vpmovsxbd ; vmovdqu STORE. *)
 e(X86_VSTEPS_TAC EXEC (14--14));;
-e(PURGE_STALE_STATES_TAC ["s13"]);;
-(* probe checkpoint 5: at s14/pc+~. YMM6 = table[r10] control vector. *)
-
-(* Step 15: vpshufb ymm6,xmm5(g0a)->ymm6.  YMM6 s15 = the s2n pshufb model output (8031 chars):
-   per output lane = `if bit 7 (control byte) then word 0 else word_subword g0a (8*control,8)`
-   where control bytes come from table[r10] = read(memory table+8*r10). This is exactly the
-   form abstracted by PSHUFB_OUT_LIST g0a m / PSHUFB_OUT_BYTE. *)
+e(REABBREV_TAC `tab1 = read YMM6 s14`);;
 e(X86_VSTEPS_TAC EXEC (15--15));;
+e(REABBREV_TAC `pshuf1 = read YMM6 s15`);;
 e(PURGE_STALE_STATES_TAC ["s14"]);;
-(* probe checkpoint 6: at s15. YMM6 = vpshufb(g0a, table[mask&0xff]).  NEXT: 16 vpmovsxbd
-   ymm6->ymm1 (8 bytes sx -> 8 int32); 17 vmovdqu ymm1->(res,rax,4) STORE.
-   To close the store value: the committed PSHUFB_ACCEPTED_PREFIX_NUM proves the first
-   popcount(m) pshufb output bytes = MAP (\p. g0a.byte(8p,8)) (ACC_IDX m); compose with
-   VPMOVSXBD_LANE_EXTRACT (byte->int32 sx) + the gather fact (g0a byte = word_sub 4 nibble) +
-   SUBITER_STORE_SPEC to get stored list = REJ_SAMPLE_ETA4_BYTES[chunk0 bytes 0..3].
-   Equivalently MATCH_MP_TAC SUBITER_STORE_SPEC (SPECL g0a, mask-byte) and discharge its 2 hyps
-   from asm 28 (gather) + asm 29 (maskbit) via MASK_LOW_BIT. Then popcnt/RAX, mid-guard,
-   sub-iters 2-4, jmp pc+56. *)
-
-(* Step 16: vpmovsxbd ymm6->ymm1 (8 bytes sx -> 8 int32).  Step 17: vmovdqu ymm1->(res,rax,4)
-   STORE — succeeds (RAX=word outlen0, outlen0<=248, so the bytes256 write at res+4*outlen0
-   is in-bounds & nonoverlapping).  SUB-ITER 1 PIPELINE FULLY STEPPED THROUGH THE STORE in the
-   actual CLEAN_BODY context. *)
 e(X86_VSTEPS_TAC EXEC (16--16));;
-e(X86_STEPS_TAC EXEC (17--17));;
-e(PURGE_STALE_STATES_TAC ["s15";"s16"]);;
-(* probe checkpoint 7: at s17/pc+136. Sub-iter 1 stored its int32 block at res+4*outlen0.
-   The stored value = MAP word_sx (vpmovsxbd of vpshufb(g0a, table[mask&0xff])); by
-   PSHUFB_ACCEPTED_PREFIX_NUM + VPMOVSXBD_LANE_EXTRACT + the proven gather/maskbit facts +
-   SUBITER_STORE_SPEC it equals REJ_SAMPLE_ETA4_BYTES[chunk0 bytes 0..3].
-   NEXT: popcnt r10d->r9d + add eax (RAX += popcount = +len of block) via
-   RAX_BOUND_AFTER_POPCNT_ADD_DIRECT; shr r8d,8 (mask>>=8); add ecx,4 (RCX=16i+4); mid-guard
-   ja (JA_NOT_TAKEN_LE + CLEAN_BLOCK_BOUNDS, no fire on clean iter); then sub-iters 2,3,4
-   (vpsrldq/vextracti128 $1 for g, mask>>8/16/24, HI lemmas for 3,4); compose via
-   REJ_SAMPLE_ETA4_BYTES_16_AS_4; add ecx,4 (final RCX=16(i+1)); jmp pc+56; ENSURES_FINAL_STATE. *)
+e(REABBREV_TAC `sx1 = read YMM1 s16`);;
+e(PURGE_STALE_STATES_TAC ["s15"]);;
+e(X86_STEPS_TAC EXEC (17--17));;         (* STORE at memory:>bytes256(res + 4*outlen0) *)
+e(PURGE_STALE_STATES_TAC ["s16"]);;
+(* probe checkpoint 7: at s17/pc+141. sub-iter 1 stored sx1 (the int32 block) at res+4*outlen0;
+   read R10 s13 = r10v stable; the prefix bytes(res,4*outlen0) untouched. *)
 
-(* Steps 18-21: popcnt r10d->r9d ; add eax,r9d ; shr r8d,8 ; add ecx,4.  CONFIRMED at s21/pc+156:
-     read RCX s21 = word_zx(word_add(word_zx(word(16*i)))(word 4))            (= word(16i+4))
-     read RAX s21 = word_zx(word_add(word_zx(word outlen0))(...word_popcount(word_zx r10v)...))
-                    (= outlen0 + popcount(low byte of mask) = outlen0 + |accepted in block|)
-     read R8  s21 = word_zx(word_ushr(word_zx mask8) 8)                       (mask >>= 8 for sub-iter 2)
-     read R9  s21 = word_zx(word(word_popcount(word_zx r10v)))                (the block popcount)
-     read RIP s21 = word(pc+156)                                             (cmp eax,248 mid-guard)
-   The counter advances match the spec exactly. *)
+(* Steps 18-21: popcnt r10d->r9d ; add eax,r9d ; shr r8d,8 ; add ecx,4.
+   With r10v stable, R9 s18 = word(popcount(word_zx r10v)) and RAX s19 = outlen0+that
+   survive (no discarded-state reference). *)
 e(X86_STEPS_TAC EXEC (18--21));;
 e(PURGE_STALE_STATES_TAC ["s17";"s18";"s19";"s20"]);;
 (* probe checkpoint 8: at s21/pc+156, sub-iter 1 complete incl. counters. NEXT:
