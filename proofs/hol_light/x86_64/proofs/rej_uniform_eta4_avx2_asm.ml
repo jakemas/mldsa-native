@@ -2034,6 +2034,20 @@ let POPCNT_VPMOVMSKB_LOW8 = prove
 (* Sub-iter k outlen bound: outlen + sum of popcnts up to sub-iter k <= 248. *)
 (* Used to prove JA-not-taken at each sub-iter's `cmp eax, 0xf8`.            *)
 
+(* Unweighted bitval sum = filter-length: the clean-body counter chain leaves R9/RAX
+   carrying word_popcount(...) = Σ_{k<8} bitval(bit 7 (f1bnd byte k)) (after the
+   POPCNT_VPMOVMSKB low-byte reduction; see the movzbl/popcnt recipe).  With the maskbit
+   fact bit 7 (f1bnd byte k) <=> val(nibble_k) < 9, this rewrites the sum to
+   LENGTH(FILTER (\x. val x < 9) [nibbles]) = LENGTH(REJ_NIBBLES_ETA4 block) — the block
+   accept count = the RAX advance for the mid-guard. *)
+let BITVAL_SUM_8_EQ_LENGTH_FILTER = prove
+ (`!a0 a1 a2 a3 a4 a5 a6 a7:byte.
+     bitval(val a0 < 9) + bitval(val a1 < 9) + bitval(val a2 < 9) + bitval(val a3 < 9) +
+     bitval(val a4 < 9) + bitval(val a5 < 9) + bitval(val a6 < 9) + bitval(val a7 < 9) =
+     LENGTH(FILTER (\x:byte. val x < 9) [a0;a1;a2;a3;a4;a5;a6;a7])`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[FILTER; LENGTH] THEN
+  REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[LENGTH; BITVAL_CLAUSES]) THEN ARITH_TAC);;
+
 let SUBITER_OUTLEN_BOUND_1 = prove
  (`!(inlist:byte list) i.
      16*(i+1) <= LENGTH inlist /\
