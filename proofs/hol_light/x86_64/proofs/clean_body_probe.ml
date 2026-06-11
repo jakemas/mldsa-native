@@ -209,20 +209,19 @@ e(SUBGOAL_THEN
     ALL_TAC]);;
 e(PURGE_STALE_STATES_TAC ["s8";"s9"]);;
 
-(* Step 11 vpmovmskb r8d <- ymm1(f1bnd opaque): R8 s11 small in f1bnd. *)
-e(X86_VSTEPS_TAC EXEC (11--11));;
-e(REABBREV_TAC `mask8 = read R8 s11`);;
-e(PURGE_STALE_STATES_TAC ["s10"]);;
-(* probe checkpoint 2: at s11/pc+110, with the 8-conjunct gather byte-fact
-   `!j. j<8 ==> word_subword (word_subword (read YMM0 s10)(0,128))(8j,8) = word_sub 4 (word_subword fn(8j,8))`
-   in hand (rewrite read YMM0 s10 -> f0sub via the abbrev). Compose with
-   word_subword fn (8j,8)=word(nibble_j) to get SUBITER_STORE_SPEC's gather hyp. *)
-
-(* ---- drop the huge f0sub/f1bnd word_join defs; gather+maskbit forall facts suffice now.
-   This keeps the vextracti128/pshufb/store terms small (f0sub/f1bnd stay opaque). ---- *)
+(* ---- drop the huge f0sub/f1bnd word_join defs BEFORE vpmovmskb; gather+maskbit forall facts
+   suffice now. This keeps mask8 (vpmovmskb of f1bnd) and all downstream terms small
+   (f0sub/f1bnd stay opaque vars). ---- *)
 e(REPEAT(FIRST_X_ASSUM(fun th ->
    if (is_eq(concl th) && (lhand(concl th) = `f0sub:int256` || lhand(concl th) = `f1bnd:int256`))
    then ALL_TAC else failwith "keep")));;
+
+(* Step 11 vpmovmskb r8d <- ymm1(f1bnd opaque): R8 s11 = word_zx(word(bitval-sum over
+   bit 7 (word_subword f1bnd (8k,8)))) — moderate now (f1bnd opaque). REABBREV mask8. *)
+e(X86_VSTEPS_TAC EXEC (11--11));;
+e(RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM1 s10 = f1bnd:int256`]));;
+e(REABBREV_TAC `mask8 = read R8 s11`);;
+e(PURGE_STALE_STATES_TAC ["s10"]);;
 
 (* Step 12: vextracti128 $0 f0sub -> xmm5.  Establish read YMM5 s12 = word_subword f0sub (0,128)
    (= SUBITER_STORE_SPEC's g) explicitly so the gather hyp transfers; then REABBREV g0a keeping
