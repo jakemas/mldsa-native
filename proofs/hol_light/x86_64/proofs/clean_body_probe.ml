@@ -308,4 +308,20 @@ e(PURGE_STALE_STATES_TAC ["s17";"s18";"s19";"s20"]);;
    - sub-iters 2,3,4 (vpsrldq $8 / vextracti128 $1 for g; mask already >>8; HI lemmas for 3,4);
    - after sub-iter 4: RCX=16(i+1), RAX=niblen(16(i+1)); jmp pc+56; ENSURES_FINAL_STATE_TAC. *)
 
+(* Bring the four 4-byte sub-iter block-byte equations into context (validated 2026-06-11):
+   SUBITER_BLOCK_BYTES (committed) takes the chunk16 decomposition + 16i+16<=LENGTH and
+   yields SUB_LIST(16i+4k,4) inlist = [chunk0 slice] for k=0,1,2,3. These feed the per-block
+   popcount/REJ_SAMPLE bridges for the mid-guard and store-value derivations. *)
+e(MP_TAC(ISPECL[`inlist:byte list`;`i:num`;`chunk0:int128`] SUBITER_BLOCK_BYTES) THEN
+  ANTS_TAC THENL
+   [ASM_REWRITE_TAC[] THEN
+    UNDISCH_TAC `LENGTH(inlist:byte list) = 272` THEN
+    UNDISCH_TAC `16 * i <= 256` THEN ARITH_TAC;
+    STRIP_TAC]);;
+(* probe checkpoint 9: block-byte facts for all 4 sub-iters now in context.
+   MID-GUARD (next): see reference_x86_body_restructure "MID-GUARD RECIPE" — reduce RAX to
+   word(outlen0 + popcount(mask low byte)), popcount = LENGTH(REJ_NIBBLES_ETA4 block0) via
+   F1BND_BYTES + fn-byte-facts + POPCNT_NIBBLES_4_BYTES_BRIDGE, outlen0+that = niblen(16i+4)
+   <= 248 (SUBITER1_PARTIAL_OUTLEN_LE) -> JA_NOT_TAKEN_LE -> fall through pc+161. *)
+
 
