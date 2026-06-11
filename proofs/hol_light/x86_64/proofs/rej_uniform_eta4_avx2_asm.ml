@@ -1232,6 +1232,44 @@ let SUB_LIST_NEST = prove
    [MATCH_MP_TAC EL_SUB_LIST THEN ASM_ARITH_TAC; ALL_TAC] THEN
   AP_THM_TAC THEN AP_TERM_TAC THEN ARITH_TAC);;
 
+(* From the 16-byte chunk decomposition SUB_LIST(16i,16) inlist = [chunk0 bytes 0..15],
+   extract the four 4-byte sub-iter blocks SUB_LIST(16i+4k,4) inlist (k=0,1,2,3) as the
+   corresponding 4-byte slices of chunk0. One application yields all four blocks; the
+   clean loop body uses these as the [b0;b1;b2;b3] argument to the per-block popcount /
+   REJ_SAMPLE bridges (POPCNT_NIBBLES_4_BYTES_BRIDGE, SUBITER_OUTLEN_STEP_4). *)
+let SUBITER_BLOCK_BYTES = prove
+ (`!inlist i chunk0:int128.
+      16 * i + 16 <= LENGTH(inlist:byte list) /\
+      SUB_LIST(16*i,16) inlist =
+        [word_subword chunk0 (0,8); word_subword chunk0 (8,8);
+         word_subword chunk0 (16,8); word_subword chunk0 (24,8);
+         word_subword chunk0 (32,8); word_subword chunk0 (40,8);
+         word_subword chunk0 (48,8); word_subword chunk0 (56,8);
+         word_subword chunk0 (64,8); word_subword chunk0 (72,8);
+         word_subword chunk0 (80,8); word_subword chunk0 (88,8);
+         word_subword chunk0 (96,8); word_subword chunk0 (104,8);
+         word_subword chunk0 (112,8); word_subword chunk0 (120,8)]
+      ==> SUB_LIST(16*i,4) inlist =
+            [word_subword chunk0 (0,8); word_subword chunk0 (8,8);
+             word_subword chunk0 (16,8); word_subword chunk0 (24,8)] /\
+          SUB_LIST(16*i+4,4) inlist =
+            [word_subword chunk0 (32,8); word_subword chunk0 (40,8);
+             word_subword chunk0 (48,8); word_subword chunk0 (56,8)] /\
+          SUB_LIST(16*i+8,4) inlist =
+            [word_subword chunk0 (64,8); word_subword chunk0 (72,8);
+             word_subword chunk0 (80,8); word_subword chunk0 (88,8)] /\
+          SUB_LIST(16*i+12,4) inlist =
+            [word_subword chunk0 (96,8); word_subword chunk0 (104,8);
+             word_subword chunk0 (112,8); word_subword chunk0 (120,8)]`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN REPEAT CONJ_TAC THENL
+   [MP_TAC(ISPECL[`0`;`4`;`16*i:num`;`16`;`inlist:byte list`] SUB_LIST_NEST);
+    MP_TAC(ISPECL[`4`;`4`;`16*i:num`;`16`;`inlist:byte list`] SUB_LIST_NEST);
+    MP_TAC(ISPECL[`8`;`4`;`16*i:num`;`16`;`inlist:byte list`] SUB_LIST_NEST);
+    MP_TAC(ISPECL[`12`;`4`;`16*i:num`;`16`;`inlist:byte list`] SUB_LIST_NEST)] THEN
+  (ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+   REWRITE_TAC[ARITH_RULE `16*i+0 = 16*i`] THEN DISCH_THEN(SUBST1_TAC o SYM) THEN
+   ASM_REWRITE_TAC[] THEN CONV_TAC(LAND_CONV SUB_LIST_CONV) THEN REFL_TAC));;
+
 let ACC_IDX_LT_8 = prove
  (`!m x. MEM x (ACC_IDX m) ==> x < 8`,
   REWRITE_TAC[ACC_IDX] THEN REPEAT GEN_TAC THEN
