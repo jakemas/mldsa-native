@@ -957,6 +957,61 @@ let POPCOUNT_BYTE_BRIDGE = prove
 let TABLE_ENTRY = define
  `TABLE_ENTRY (m:byte) = SUB_LIST(8 * val m, 8) (mldsa_rej_uniform_table:byte list)`;;
 
+(* bytes64 read = word of the 8-byte little-endian value. *)
+let RB64 = prove
+ (`!(a:int64) (s:x86state). read(memory:>bytes64 a) s = word(read(memory:>bytes(a,8)) s)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[bytes64; READ_COMPONENT_COMPOSE; asword; through; read]);;
+
+(* Read an n-byte window at offset k of a byte region known to hold num_of_wordlist L:
+   the window holds num_of_wordlist(SUB_LIST(k,n) L).  (NB: HOL parses `k + LENGTH L - k`
+   as `k + (LENGTH L - k)` since `-` binds tighter than `+`; the SUB_ADD-style reductions
+   here go through ASM_ARITH_TAC with the k+n<=LENGTH L hypothesis.) *)
+let READ_BYTES_SLICE = prove
+ (`!(a:int64) k n (L:byte list) (s:x86state).
+      read(memory:>bytes(a,LENGTH L)) s = num_of_wordlist L /\ k + n <= LENGTH L
+      ==> read(memory:>bytes(word_add a (word k), n)) s = num_of_wordlist(SUB_LIST(k,n) L)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `k + (LENGTH(L:byte list) - k) = LENGTH L` ASSUME_TAC THENL
+   [ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `n + (LENGTH(L:byte list) - (k+n)) = LENGTH L - k` ASSUME_TAC THENL
+   [ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `read(memory:>bytes(word_add a (word k), LENGTH(L:byte list) - k)) s =
+                num_of_wordlist(SUB_LIST(k, LENGTH L - k) L)` ASSUME_TAC THENL
+   [MP_TAC(ISPECL [`memory:(x86state,int64->byte)component`; `a:int64`; `s:x86state`;
+       `SUB_LIST(0,k) (L:byte list)`; `SUB_LIST(k, LENGTH(L:byte list) - k) L`;
+       `k:num`; `LENGTH(L:byte list) - k`] BYTES_EQ_NUM_OF_WORDLIST_APPEND) THEN
+    REWRITE_TAC[DIMINDEX_8; LENGTH_SUB_LIST; SUB_0] THEN
+    ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    ASM_REWRITE_TAC[SUB_LIST_TOPSPLIT] THEN
+    DISCH_THEN(fun th -> REWRITE_TAC[th]);
+    ALL_TAC] THEN
+  MP_TAC(ISPECL [`memory:(x86state,int64->byte)component`; `word_add a (word k):int64`; `s:x86state`;
+     `SUB_LIST(k,n) (L:byte list)`; `SUB_LIST(k+n, LENGTH(L:byte list) - (k+n)) L`;
+     `n:num`; `LENGTH(L:byte list) - (k + n)`] BYTES_EQ_NUM_OF_WORDLIST_APPEND) THEN
+  REWRITE_TAC[DIMINDEX_8; LENGTH_SUB_LIST] THEN
+  ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  MP_TAC(ISPECL [`L:byte list`; `n:num`; `LENGTH(L:byte list) - (k+n)`; `k:num`] SUB_LIST_SPLIT) THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[GSYM th]) THEN ASM_REWRITE_TAC[] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]));;
+
+(* The vmovq table load: with the table memory invariant, reading the 8-byte entry at
+   index r (byte offset 8r) yields word(num_of_wordlist(TABLE_ENTRY(word r))) — i.e. the
+   gather-control word for mask r.  Bridge (1) of the sub-iter store value. *)
+let TABLE_VMOVQ_READ = prove
+ (`!(table:int64) r (s:x86state).
+      read(memory:>bytes(table,2048)) s = num_of_wordlist(mldsa_rej_uniform_table:byte list) /\ r < 256
+      ==> read(memory:>bytes64(word_add table (word(8*r)))) s =
+          word(num_of_wordlist(TABLE_ENTRY(word r:byte)))`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[RB64; TABLE_ENTRY] THEN AP_TERM_TAC THEN
+  SUBGOAL_THEN `LENGTH(mldsa_rej_uniform_table:byte list) = 2048` ASSUME_TAC THENL
+   [REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+  SUBGOAL_THEN `val(word r:byte) = r` SUBST1_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_8] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  MP_TAC(ISPECL [`table:int64`; `8*r`; `8`; `mldsa_rej_uniform_table:byte list`; `s:x86state`]
+    READ_BYTES_SLICE) THEN
+  ASM_REWRITE_TAC[] THEN ANTS_TAC THENL [ASM_ARITH_TAC; DISCH_THEN MATCH_ACCEPT_TAC]);;
+
 let ACC_IDX = define
  `ACC_IDX (m:byte) = FILTER (\i. bit i m) [0;1;2;3;4;5;6;7]`;;
 
