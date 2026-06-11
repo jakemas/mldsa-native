@@ -286,4 +286,24 @@ e(PURGE_STALE_STATES_TAC ["s15";"s16"]);;
    (vpsrldq/vextracti128 $1 for g, mask>>8/16/24, HI lemmas for 3,4); compose via
    REJ_SAMPLE_ETA4_BYTES_16_AS_4; add ecx,4 (final RCX=16(i+1)); jmp pc+56; ENSURES_FINAL_STATE. *)
 
+(* Steps 18-21: popcnt r10d->r9d ; add eax,r9d ; shr r8d,8 ; add ecx,4.  CONFIRMED at s21/pc+156:
+     read RCX s21 = word_zx(word_add(word_zx(word(16*i)))(word 4))            (= word(16i+4))
+     read RAX s21 = word_zx(word_add(word_zx(word outlen0))(...word_popcount(word_zx r10v)...))
+                    (= outlen0 + popcount(low byte of mask) = outlen0 + |accepted in block|)
+     read R8  s21 = word_zx(word_ushr(word_zx mask8) 8)                       (mask >>= 8 for sub-iter 2)
+     read R9  s21 = word_zx(word(word_popcount(word_zx r10v)))                (the block popcount)
+     read RIP s21 = word(pc+156)                                             (cmp eax,248 mid-guard)
+   The counter advances match the spec exactly. *)
+e(X86_STEPS_TAC EXEC (18--21));;
+e(PURGE_STALE_STATES_TAC ["s17";"s18";"s19";"s20"]);;
+(* probe checkpoint 8: at s21/pc+156, sub-iter 1 complete incl. counters. NEXT:
+   - prove RAX s21 = word(LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16i+4) inlist))) via
+     RAX_BOUND_AFTER_POPCNT_ADD_DIRECT + POPCNT_NIBBLES_4_BYTES_BRIDGE (popcount(r10v low) =
+     |accepted nibbles in block 0| = len of REJ_SAMPLE block), and the store value via
+     SUBITER_STORE_SPEC composed with SUBITER_OUTLEN_STEP_4 / REJ_SAMPLE_ETA4_BYTES_STEP_16;
+   - mid-guard cmp eax,248 / ja (pc+156): JA_NOT_TAKEN_LE (RAX<=248 on clean iter via
+     niblen(16i+4)<=niblen(16(i+1))<=248 + CLEAN_BLOCK_BOUNDS) -> fall through;
+   - sub-iters 2,3,4 (vpsrldq $8 / vextracti128 $1 for g; mask already >>8; HI lemmas for 3,4);
+   - after sub-iter 4: RCX=16(i+1), RAX=niblen(16(i+1)); jmp pc+56; ENSURES_FINAL_STATE_TAC. *)
+
 
