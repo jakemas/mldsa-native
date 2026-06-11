@@ -217,10 +217,11 @@ e(REPEAT(FIRST_X_ASSUM(fun th ->
    then ALL_TAC else failwith "keep")));;
 
 (* Step 11 vpmovmskb r8d <- ymm1(f1bnd opaque): R8 s11 = word_zx(word(bitval-sum over
-   bit 7 (word_subword f1bnd (8k,8)))) — moderate now (f1bnd opaque). REABBREV mask8. *)
+   bit 7 (word_subword f1bnd (8k,8)))) — moderate (f1bnd opaque).  Do NOT opaque-REABBREV R8:
+   keep its explicit bitval-sum value so the downstream movzbl R10 is a state-free term that
+   survives DISCARD (per CLEAN_BODY_dev lesson: opaque REABBREV + PURGE breaks the popcnt chain). *)
 e(X86_VSTEPS_TAC EXEC (11--11));;
 e(RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM1 s10 = f1bnd:int256`]));;
-e(REABBREV_TAC `mask8 = read R8 s11`);;
 e(PURGE_STALE_STATES_TAC ["s10"]);;
 
 (* Step 12: vextracti128 $0 f0sub -> xmm5.  Establish read YMM5 s12 = word_subword f0sub (0,128)
