@@ -3063,6 +3063,21 @@ let SUBITER1_PARTIAL_OUTLEN = prove
     REWRITE_TAC[ADD_CLAUSES] THEN DISCH_THEN(fun th -> REWRITE_TAC[th]);
     REWRITE_TAC[REJ_NIBBLES_ETA4_APPEND; LENGTH_APPEND]]);;
 
+(* Generic per-sub-iter outlen advance: appending the 4-byte block at offset    *)
+(* 16i+d extends the running int32 outlist length by that block's accept count.  *)
+(* (SUBITER1_PARTIAL_OUTLEN is the d=0 instance.) Used to thread RAX = niblen of  *)
+(* the running prefix across the 4 sub-iters.                                    *)
+let SUBITER_PARTIAL_OUTLEN_STEP = prove
+ (`!inlist i d.
+     LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+d) inlist):int32 list) +
+     LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16*i+d,4) inlist):int16 list) =
+     LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,(16*i+d)+4) inlist):int32 list)`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
+  MP_TAC(ISPECL [`inlist:byte list`; `16*i+d`; `4`; `0`] SUB_LIST_SPLIT) THEN
+  REWRITE_TAC[ADD_CLAUSES] THEN DISCH_THEN SUBST1_TAC THEN
+  REWRITE_TAC[REJ_NIBBLES_ETA4_APPEND; LENGTH_APPEND]);;
+
 (* Generic partial-prefix bound: for any d <= 16, the nibble-length of the     *)
 (* prefix SUB_LIST(0,16i+d) is <= niblen(16(i+1)), hence <= 248 on clean iters.*)
 let SUBITER_PARTIAL_OUTLEN_LE = prove
