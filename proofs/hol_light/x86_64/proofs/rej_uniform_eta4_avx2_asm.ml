@@ -995,6 +995,31 @@ let READ_BYTES_SLICE = prove
   DISCH_THEN(fun th -> REWRITE_TAC[GSYM th]) THEN ASM_REWRITE_TAC[] THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]));;
 
+(* Store-value bridge (2): the first k int32 lanes of a 256-bit store at address A read
+   back as bytes(A,4k) = num_of_wordlist(wordlist_of_num k (val V)).  (k<=8; the vmovdqu
+   writeback wrote read(memory:>bytes256 A) = V = the vpmovsxbd output, and the memory
+   postcondition reads only the first 4*block_count bytes = the accepted coefficients.)
+   Composes with the lane-extract + SUBITER1_VALUE to give num_of_wordlist(REJ_SAMPLE block). *)
+let BYTES256_PREFIX_WORDLIST = prove
+ (`!(A:int64) (V:int256) k (s:x86state).
+      read(memory:>bytes256 A) s = V /\ k <= 8
+      ==> read(memory:>bytes(A, 4*k)) s = num_of_wordlist(wordlist_of_num k (val V):int32 list)`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[NUM_OF_WORDLIST_OF_NUM; DIMINDEX_32; READ_COMPONENT_COMPOSE] THEN
+  SUBGOAL_THEN `read (bytes(A,32)) (read memory (s:x86state)) = val(V:int256)` ASSUME_TAC THENL
+   [UNDISCH_TAC `read(memory:>bytes256 A) s = V` THEN
+    REWRITE_TAC[bytes256; READ_COMPONENT_COMPOSE; asword; through; read] THEN
+    DISCH_THEN(SUBST1_TAC o SYM) THEN REWRITE_TAC[VAL_WORD; DIMINDEX_256] THEN
+    CONV_TAC SYM_CONV THEN MATCH_MP_TAC MOD_LT THEN
+    REWRITE_TAC[GSYM DIMINDEX_256] THEN
+    MP_TAC(ISPECL[`A:int64`;`32`;`read memory (s:x86state)`] READ_BYTES_BOUND) THEN
+    REWRITE_TAC[DIMINDEX_256] THEN ARITH_TAC;
+    ALL_TAC] THEN
+  MP_TAC(ISPECL [`A:int64`; `32`; `4*k`; `read memory (s:x86state)`] READ_BYTES_MOD) THEN
+  ASM_REWRITE_TAC[ARITH_RULE `8 * 4 * k = 32 * k`] THEN
+  SUBGOAL_THEN `MIN 32 (4*k) = 4*k` SUBST1_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  DISCH_THEN(SUBST1_TAC o SYM) THEN REFL_TAC);;
+
 (* The vmovq table load: with the table memory invariant, reading the 8-byte entry at
    index r (byte offset 8r) yields word(num_of_wordlist(TABLE_ENTRY(word r))) — i.e. the
    gather-control word for mask r.  Bridge (1) of the sub-iter store value. *)
