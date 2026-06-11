@@ -245,6 +245,11 @@ e(PURGE_STALE_STATES_TAC ["s11"]);;
    RAX bound) is the open mechanism — try GHOST_INTRO R8/R10 with correct syntax or REABBREV in a
    verbose single-step.  For now the probe stops here (sub-iter 1 through counters validated
    interactively; see memory reference_x86_body_restructure for the precise next step). *)
+(* NOTE: neither X86_STEPS_TAC nor X86_VERBOSE_STEP_TAC emits a `read R10 s13 = ...`
+   equation for this MOVZX r10d,r8b — the s2n stepper does not surface the sub-register
+   write value here (deep stepper-internals issue, see memory). R10's value is needed
+   only inline in R9/RAX after the popcnt; the count is recoverable the PR1014 way
+   (SUBGOAL the popcnt result, don't depend on the discarded reg). *)
 e(X86_STEPS_TAC EXEC (13--13));;
 e(PURGE_STALE_STATES_TAC ["s12"]);;
 (* probe checkpoint 4: at s13/pc+116. mask8 = word_zx(word(Sum_{k<32} 2^k bitval(bit 7
