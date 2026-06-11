@@ -218,4 +218,26 @@ e(PURGE_STALE_STATES_TAC ["s10"]);;
    in hand (rewrite read YMM0 s10 -> f0sub via the abbrev). Compose with
    word_subword fn (8j,8)=word(nibble_j) to get SUBITER_STORE_SPEC's gather hyp. *)
 
+(* ---- drop the huge f0sub/f1bnd word_join defs; gather+maskbit forall facts suffice now.
+   This keeps the vextracti128/pshufb/store terms small (f0sub/f1bnd stay opaque). ---- *)
+e(REPEAT(FIRST_X_ASSUM(fun th ->
+   if (is_eq(concl th) && (lhand(concl th) = `f0sub:int256` || lhand(concl th) = `f1bnd:int256`))
+   then ALL_TAC else failwith "keep")));;
+
+(* Step 12: vextracti128 $0 f0sub -> xmm5.  Establish read YMM5 s12 = word_subword f0sub (0,128)
+   (= SUBITER_STORE_SPEC's g) explicitly so the gather hyp transfers; then REABBREV g0a keeping
+   the eq g0a = word_subword f0sub (0,128). *)
+e(X86_VSTEPS_TAC EXEC (12--12));;
+e(RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM0 s11 = f0sub:int256`]));;
+e(SUBGOAL_THEN `read YMM5 s12 = word_subword (f0sub:int256) (0,128):int128` ASSUME_TAC THENL
+   [FIRST_X_ASSUM(fun th -> if is_eq(concl th) && can(find_term((=)`read YMM5 s12`))(lhand(concl th))
+                            then SUBST1_TAC th else NO_TAC) THEN
+    CONV_TAC WORD_BLAST;
+    ALL_TAC]);;
+e(PURGE_STALE_STATES_TAC ["s11"]);;
+(* probe checkpoint 3: at s12, read YMM5 s12 = word_subword f0sub (0,128) (= g for the store),
+   f0sub/f1bnd opaque, gather+maskbit forall facts retained, mask8 abbreviated.
+   The gather hyp `word_subword (word_subword f0sub (0,128))(8j,8)=word_sub 4(word_subword fn(8j,8))`
+   is exactly word_subword (read YMM5 s12) (8j,8) = ..., ready for SUBITER_STORE_SPEC. *)
+
 
