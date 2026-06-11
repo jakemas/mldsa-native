@@ -98,7 +98,13 @@ e(REPEAT GEN_TAC THEN STRIP_TAC THEN
     TRANS_TAC LE_TRANS `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * (i+1)) inlist):int16 list)` THEN
     ASM_REWRITE_TAC[] THEN MATCH_MP_TAC NIBLEN_PREFIX_MONO THEN ARITH_TAC; ALL_TAC] THEN
   ABBREV_TAC `outlen0 = LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list)` THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list) = outlen0`]) THEN
+  (* Fold LENGTH(REJ_SAMPLE..(0,16i))->outlen0 in the RAX/memory assumptions, but KEEP the
+     outlen0 definition itself (the mid-guard needs it to fold SUBITER_OUTLEN_BOUND_1 and the
+     final postcondition needs to reconstruct LENGTH(REJ_SAMPLE..(0,16(i+1)))).  Grab the def
+     as a named theorem first, RULE_ASSUM with it, then re-ASSUME it. *)
+  FIRST_ASSUM(fun th -> if concl th =
+      `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list) = outlen0`
+    then (RULE_ASSUM_TAC(REWRITE_RULE[th]) THEN ASSUME_TAC th) else NO_TAC) THEN
   MP_TAC(SPECL [`outlen0:num`;`248`] JA_NOT_TAKEN_LE) THEN ASM_REWRITE_TAC[] THEN DISCH_TAC THEN
   MP_TAC(SPECL [`16*i`;`256`] JA_NOT_TAKEN_LE) THEN ASM_REWRITE_TAC[] THEN DISCH_TAC THEN
   VAL_INT64_TAC `outlen0:num`);;

@@ -2040,6 +2040,23 @@ let POPCNT_VPMOVMSKB_LOW8 = prove
    fact bit 7 (f1bnd byte k) <=> val(nibble_k) < 9, this rewrites the sum to
    LENGTH(FILTER (\x. val x < 9) [nibbles]) = LENGTH(REJ_NIBBLES_ETA4 block) — the block
    accept count = the RAX advance for the mid-guard. *)
+(* Collapse the stepped RAX add-nest word_zx(word_add(word_zx(word a))(word_zx(word_zx(word b))))
+   to word(a+b) when a+b < 2^32.  After the popcnt+add the clean-body RAX has exactly this
+   shape (a = outlen0, b = block accept count); with a+b <= 248 it folds to word(outlen0+count),
+   from which the niblen bound + JA_NOT_TAKEN_LE discharges the mid-guard ja. *)
+let RAX_NEST_REDUCE = prove
+ (`!a b. a + b < 2 EXP 32
+     ==> word_zx (word_add (word_zx (word a:int64):int32)
+                           (word_zx (word_zx (word b:int32):int64):int32):int32):int64 =
+         word(a + b)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `a < 2 EXP 32 /\ b < 2 EXP 32 /\ a + b < 2 EXP 64` STRIP_ASSUME_TAC THENL
+   [REPEAT(POP_ASSUM MP_TAC) THEN ARITH_TAC; ALL_TAC] THEN
+  REWRITE_TAC[GSYM VAL_EQ] THEN
+  REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD_ADD; VAL_WORD; DIMINDEX_32; DIMINDEX_64] THEN
+  ASM_SIMP_TAC[MOD_LT; ARITH_RULE `x < 2 EXP 32 ==> x < 2 EXP 64`] THEN
+  ASM_SIMP_TAC[MOD_LT]);;
+
 let BITVAL_SUM_8_EQ_LENGTH_FILTER = prove
  (`!a0 a1 a2 a3 a4 a5 a6 a7:byte.
      bitval(val a0 < 9) + bitval(val a1 < 9) + bitval(val a2 < 9) + bitval(val a3 < 9) +
