@@ -1937,6 +1937,100 @@ let POPCNT_NIBBLES_4_BYTES_BRIDGE = prove
   DISCH_THEN SUBST1_TAC THEN
   MATCH_ACCEPT_TAC LENGTH_FILTER_BYTE_NIBBLES_4_BYTES);;
 
+(* ------------------------------------------------------------------------- *)
+(* movzbl/popcnt low-byte reduction for the clean loop body.  After the      *)
+(* movzbl r8b->r10d the popcnt operand is word_zx layers over                *)
+(* word(val mask8 MOD 256) where mask8 = word_zx(word(32-term vpmovmskb       *)
+(* bitval sum)); POPCNT_VPMOVMSKB_LOW8 collapses the whole popcnt to the      *)
+(* low-8 bitval sum bitval(p0)+..+bitval(p7), which then composes with        *)
+(* POPCNT_NIBBLES_4_BYTES_BRIDGE (p k = bit 7 of f1bnd byte k) to give the    *)
+(* block accept count.  Supporting: ADD256_MOD, LOW8_LT, MOD_RED.            *)
+(* ------------------------------------------------------------------------- *)
+
+let ADD256_MOD = prove
+ (`!a b. a < 256 ==> (a + 256 * b) MOD 256 = a`,
+  REPEAT STRIP_TAC THEN ASM_SIMP_TAC[MOD_MULT_ADD; MOD_LT]);;
+
+let LOW8_LT = prove
+ (`!p:num->bool. bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+     16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7) < 256`,
+  GEN_TAC THEN
+  MAP_EVERY (fun k -> MP_TAC(ISPEC (mk_comb(`p:num->bool`,mk_small_numeral k)) BITVAL_BOUND))
+    [0;1;2;3;4;5;6;7] THEN ARITH_TAC);;
+
+let MOD_RED = prove
+ (`!p:num->bool.
+    (bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+     16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7) +
+     256*bitval(p 8) + 512*bitval(p 9) + 1024*bitval(p 10) + 2048*bitval(p 11) +
+     4096*bitval(p 12) + 8192*bitval(p 13) + 16384*bitval(p 14) + 32768*bitval(p 15) +
+     65536*bitval(p 16) + 131072*bitval(p 17) + 262144*bitval(p 18) + 524288*bitval(p 19) +
+     1048576*bitval(p 20) + 2097152*bitval(p 21) + 4194304*bitval(p 22) + 8388608*bitval(p 23) +
+     16777216*bitval(p 24) + 33554432*bitval(p 25) + 67108864*bitval(p 26) + 134217728*bitval(p 27) +
+     268435456*bitval(p 28) + 536870912*bitval(p 29) + 1073741824*bitval(p 30) + 2147483648*bitval(p 31)) MOD 256 =
+    bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+    16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7)`,
+  GEN_TAC THEN
+  SUBGOAL_THEN
+   `(bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+     16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7) +
+     256*bitval(p 8) + 512*bitval(p 9) + 1024*bitval(p 10) + 2048*bitval(p 11) +
+     4096*bitval(p 12) + 8192*bitval(p 13) + 16384*bitval(p 14) + 32768*bitval(p 15) +
+     65536*bitval(p 16) + 131072*bitval(p 17) + 262144*bitval(p 18) + 524288*bitval(p 19) +
+     1048576*bitval(p 20) + 2097152*bitval(p 21) + 4194304*bitval(p 22) + 8388608*bitval(p 23) +
+     16777216*bitval(p 24) + 33554432*bitval(p 25) + 67108864*bitval(p 26) + 134217728*bitval(p 27) +
+     268435456*bitval(p 28) + 536870912*bitval(p 29) + 1073741824*bitval(p 30) + 2147483648*bitval(p 31)) =
+    (bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+     16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7)) +
+    256 * (bitval(p 8) + 2*bitval(p 9) + 4*bitval(p 10) + 8*bitval(p 11) +
+     16*bitval(p 12) + 32*bitval(p 13) + 64*bitval(p 14) + 128*bitval(p 15) +
+     256*bitval(p 16) + 512*bitval(p 17) + 1024*bitval(p 18) + 2048*bitval(p 19) +
+     4096*bitval(p 20) + 8192*bitval(p 21) + 16384*bitval(p 22) + 32768*bitval(p 23) +
+     65536*bitval(p 24) + 131072*bitval(p 25) + 262144*bitval(p 26) + 524288*bitval(p 27) +
+     1048576*bitval(p 28) + 2097152*bitval(p 29) + 4194304*bitval(p 30) + 8388608*bitval(p 31))`
+   SUBST1_TAC THENL [ARITH_TAC; ALL_TAC] THEN
+  MATCH_MP_TAC ADD256_MOD THEN REWRITE_TAC[LOW8_LT]);;
+
+let POPCNT_VPMOVMSKB_LOW8 = prove
+ (`!p:num->bool.
+     word_popcount
+       (word_zx (word_zx (word_zx
+          (word (val (word_zx (word
+             (bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+              16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7) +
+              256*bitval(p 8) + 512*bitval(p 9) + 1024*bitval(p 10) + 2048*bitval(p 11) +
+              4096*bitval(p 12) + 8192*bitval(p 13) + 16384*bitval(p 14) + 32768*bitval(p 15) +
+              65536*bitval(p 16) + 131072*bitval(p 17) + 262144*bitval(p 18) + 524288*bitval(p 19) +
+              1048576*bitval(p 20) + 2097152*bitval(p 21) + 4194304*bitval(p 22) + 8388608*bitval(p 23) +
+              16777216*bitval(p 24) + 33554432*bitval(p 25) + 67108864*bitval(p 26) + 134217728*bitval(p 27) +
+              268435456*bitval(p 28) + 536870912*bitval(p 29) + 1073741824*bitval(p 30) + 2147483648*bitval(p 31)):int32):int64)
+            MOD 256):int32):int32):int32):int32) =
+     bitval(p 0) + bitval(p 1) + bitval(p 2) + bitval(p 3) +
+     bitval(p 4) + bitval(p 5) + bitval(p 6) + bitval(p 7)`,
+  GEN_TAC THEN
+  SUBGOAL_THEN
+   `val (word_zx (word
+             (bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+              16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7) +
+              256*bitval(p 8) + 512*bitval(p 9) + 1024*bitval(p 10) + 2048*bitval(p 11) +
+              4096*bitval(p 12) + 8192*bitval(p 13) + 16384*bitval(p 14) + 32768*bitval(p 15) +
+              65536*bitval(p 16) + 131072*bitval(p 17) + 262144*bitval(p 18) + 524288*bitval(p 19) +
+              1048576*bitval(p 20) + 2097152*bitval(p 21) + 4194304*bitval(p 22) + 8388608*bitval(p 23) +
+              16777216*bitval(p 24) + 33554432*bitval(p 25) + 67108864*bitval(p 26) + 134217728*bitval(p 27) +
+              268435456*bitval(p 28) + 536870912*bitval(p 29) + 1073741824*bitval(p 30) + 2147483648*bitval(p 31)):int32):int64)
+            MOD 256 =
+    bitval(p 0) + 2*bitval(p 1) + 4*bitval(p 2) + 8*bitval(p 3) +
+    16*bitval(p 4) + 32*bitval(p 5) + 64*bitval(p 6) + 128*bitval(p 7)`
+   SUBST1_TAC THENL
+   [REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD; DIMINDEX_32; DIMINDEX_64] THEN
+    REWRITE_TAC[ARITH_RULE `256 = 2 EXP 8`; MOD_MOD_EXP_MIN] THEN
+    CONV_TAC(ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN
+    REWRITE_TAC[ARITH_RULE `2 EXP 8 = 256`; MOD_RED];
+    MAP_EVERY (fun k -> BOOL_CASES_TAC (mk_comb(`p:num->bool`, mk_small_numeral k)))
+      [0;1;2;3;4;5;6;7] THEN
+    REWRITE_TAC[BITVAL_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN
+    CONV_TAC WORD_REDUCE_CONV]);;
+
 (* Sub-iter k outlen bound: outlen + sum of popcnts up to sub-iter k <= 248. *)
 (* Used to prove JA-not-taken at each sub-iter's `cmp eax, 0xf8`.            *)
 
