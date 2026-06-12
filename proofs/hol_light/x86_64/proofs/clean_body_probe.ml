@@ -937,3 +937,36 @@ let SUBITER_STORE_EXTEND = prove
    Then MAP form -> REJ_SAMPLE_ETA4_BYTES[b0;b1;b2;b3] = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(16i,4) inlist)
    [by asm11: SUB_LIST(16i,16)=[16 chunk0 bytes], take first 4 via SUB_LIST(0,4)/SUBITER_BLOCK_BYTES].
    => store = num_of_wordlist(REJ block); SUBITER_STORE_EXTEND folds onto prefix. DONE. *)
+
+(* ##########################################################################
+   ⚠️⚠️ LOST THE MAIN PROOF AGAIN to the `g` pitfall (2026-06-12) ⚠️⚠️
+   Ran `g(mk_eq(...))` to DEBUG the mask8-lowbyte fact -> it RESET current_goalstack,
+   discarding the fully-stepped s17 CLEAN_BODY proof (A,B,C,SUBITER_STORE_POSTCOND all
+   applied). LESSON (3rd time): NEVER `g`/`set_goal` mid-proof. Prove side-facts with
+   `prove(...)` ONLY. To debug a subgoal's reduction, use a THROWAWAY copy via
+   `let _ = prove(tm, tac)` — never `g tm; e tac`.
+
+   Reusable lemmas proven clean this session (use prove(), keep them):
+     WORD_BYTE_MOD = |- !n. word(n MOD 256):byte = word n
+       prove: GEN_TAC THEN SUBGOAL_THEN `256 = 2 EXP dimindex(:8)` SUBST1_TAC THENL
+         [REWRITE_TAC[DIMINDEX_8] THEN CONV_TAC NUM_REDUCE_CONV; REWRITE_TAC[WORD_MOD_SIZE]]
+   For the maskbit hyp of SUBITER_STORE_SPEC, the discharge is (in-context, j fixed <8):
+     bit j (word(val mask8 MOD 256)) where mask8 = word_zx(word(MASKSUM)) [asm], MASKSUM the
+     32-term bitval sum. Steps: REWRITE mask8 def; the byte word(val(word_zx(word MASKSUM)) MOD 256)
+     -- reduce val(word_zx(word MASKSUM):int64) = MASKSUM MOD 2^64 (VAL_WORD_ZX_GEN+VAL_WORD+DIMINDEX),
+     MOD 256 of that = MASKSUM MOD 256 (MOD_MOD nest), word(_ MOD 256):byte = word MASKSUM (WORD_BYTE_MOD);
+     then MASK_LOW_BIT (only low 8 of the 32 terms survive a byte) gives bit j = bit7(f1bnd lane j);
+     asm30 + asm24(F0NIB) finish. (A clean standalone MASK8_BIT lemma had a parse/ARITH snag; do it
+     in-context where MASKSUM is concrete and EXPAND_CASES/MASK_LOW_BIT apply directly.)
+
+   FULL REPLAY for next session is the concatenation of all probe blocks above:
+   prologue(1-4) + s5 + s6-8(f0nib) + gather + maskbit + s11-12 + g_is? no: keep order as run:
+     prologue; guards 1-4; vpmovzxbw s5 -> usimd16; s6-8 f0nib; gather SUBGOAL; maskbit SUBGOAL;
+     PURGE; drop f0sub/f1bnd join-defs; s11 (vpmovmskb); s12 (vextracti128) + wzx_id RULE_ASSUM;
+     s13 REABBREV mask8 + VERBOSE + MOVZBL_R10_CAPTURE + fold; s14 + REABBREV tab1 + CAPTURE tab1_eq;
+     s15 REABBREV pshuf1 + PURGE; s16 REABBREV sx1 + PURGE; s17 STORE + PURGE;
+     Step A (sx1=usimd8); ctl_eq SUBGOAL; Step B (pshuf1=word_zx(usimd16 F (word_zx tab1)),
+       control VERBATIM word_zx tab1, then REWRITE[tab1_eq] closes residual);
+     ASSUME_TAC(REWRITE_RULE[ctl_eq](REWRITE_RULE[B] A)) -> sx1 in POSTCOND shape;
+     g_is_bare + RULE_ASSUM_TAC(REWRITE_RULE[g_is_bare]); kbound; MP SUBITER_STORE_POSTCOND;
+     >>> THEN the SUBITER_STORE_SPEC finish (this turn's plan). *)
