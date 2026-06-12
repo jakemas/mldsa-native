@@ -1239,3 +1239,20 @@ let LENGTH_ACC_IDX_LE_8 = prove
      LENGTH(FILTER (\i. bit i m) [0..7]) = word_popcount (word(...)) -- or prove directly by
      case-analysis on the 8 bits (BOOL_CASES x8, both sides EXPAND_NSUM/LENGTH-reduce, NUM_REDUCE).
    This is the LAST math fact for the SUBITER_STORE_EXTEND fold; everything else is the proven recipe. *)
+
+(* ★★ SUB-ITER 1 COMPLETE THROUGH MID-GUARD (2026-06-12) ★★
+   Live: after the store-value proof, ran counters (s18-21: popcnt/add/shr/add) + the full
+   mid-guard (s22): block-bytes (SUBITER_BLOCK_BYTES), popcount->8-bitval-sum (MOD_RED + BOOL_CASES),
+   8-bitval-sum = LENGTH(REJ_NIBBLES block) (mbits + F0NIB + BITVAL_SUM_8 + LENGTH_FILTER_BYTE_NIBBLES_4_BYTES),
+   outlen0+block<=248 (SUBITER_OUTLEN_BOUND_1), RAX reduce (RAX_NEST_REDUCE), JA_NOT_TAKEN_LE, step s22.
+   RESULT at s22: RIP = word(pc+161) [falls through, no scalar-tail exit];
+                  RAX = word(outlen0 + LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(16i,4) inlist)));
+                  RCX = word(16i+4); block store (REJ block) at res+4outlen0 proven.
+   NEXT: sub-iter 2 starts at pc+167 (VPSRLDQ xmm5,xmm5,8 -> g = hi 64 bits of the low 128-lane).
+   Sub-iters 2-4 reuse the EXACT store-value recipe (PSHUF1_STRUCT_USIMD/tab1/ctl/STORE_LANE/
+   SUBITER_STORE_POSTCOND/SUBITER_STORE_SPEC maskbit+gather) + counters + mid-guard, with g sourced:
+     sub2: vpsrldq xmm5,xmm5,8  (g = word_subword f0sub (64,128) effectively -- the hi half of lane-0)
+     sub3: vextracti128 xmm5,ymm0,1  (g = hi 128-lane, word_subword f0sub (128,128))
+     sub4: vpsrldq xmm5,xmm5,8  (hi-lane hi half, word_subword f0sub (192,128))
+   The pshuf SOURCE register xmm5 changes; mask8 is shifted (shr r8d,8 each sub-iter) so the
+   movzbl picks the next byte. The 4 blocks combine via REJ_SAMPLE_ETA4_BYTES_16_AS_4. *)
