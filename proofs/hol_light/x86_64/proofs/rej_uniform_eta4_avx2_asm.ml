@@ -1769,6 +1769,79 @@ let VPMOVSXBD_LANE_EXTRACT = prove
            DIMINDEX_256; ARITH] THEN
   REPEAT CONJ_TAC THEN CONV_TAC WORD_BLAST);;
 
+(* ===================================================================== *)
+(* STORE-VALUE LANE BRIDGE (cheat-free, 2026-06-11).                     *)
+(* These compose the full sub-iter SIMD store value: vpshufb (compacts   *)
+(* accepted nibbles via the precomputed table) then vpmovsxbd (sign-     *)
+(* extends each byte to int32). STORE_LANE_MATCH gives lane j of the     *)
+(* YMM store value = word_sx of the j-th PSHUFB-gathered table byte,     *)
+(* feeding STORE_BYTES256_NUM_OF_WORDLIST's lane-match hypothesis.       *)
+(* pshuf1 is int256 (vpshufb operates on the full YMM); the store reads  *)
+(* only the low 64 bits = low 128-lane = exactly the PSHUFB_OUT_BYTE     *)
+(* form (j<8), so the outer word_zx 256<-128 is transparent (WSZ_OK).    *)
+(* ===================================================================== *)
+
+(* WSZ_OK: outer word_zx 256<-128 is transparent for low-lane bytes (j<8). *)
+let WSZ_OK = prove
+ (`!(x:int128) j. j < 8
+    ==> word_subword (word_zx x:int256) (8 * j,8):byte = word_subword x (8 * j,8)`,
+  REPEAT GEN_TAC THEN DISCH_TAC THEN
+  MATCH_MP_TAC (ISPECL [`x:int128`; `8*j`; `8`]
+    (INST_TYPE [`:256`,`:N`; `:128`,`:M`; `:8`,`:P`] WORD_SUBWORD_ZX)) THEN
+  REWRITE_TAC[DIMINDEX_8;DIMINDEX_128;DIMINDEX_256] THEN
+  POP_ASSUM MP_TAC THEN ARITH_TAC);;
+
+(* VAL4EQ8: structural pshuf1 F uses (4)word index extraction; PSHUFB_OUT_BYTE *)
+(* uses (8)word -- same low 4 bits, so the vals agree. *)
+let VAL4EQ8 = prove
+ (`!i:byte. val(word_subword i (0,4):4 word) = val(word_subword i (0,4):8 word)`,
+  GEN_TAC THEN REWRITE_TAC[VAL_WORD_SUBWORD] THEN
+  SIMP_TAC[DIMINDEX_4;DIMINDEX_8;DIMINDEX_16] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[MOD_MOD_EXP_MIN] THEN CONV_TAC NUM_REDUCE_CONV);;
+
+(* PSHUF1_LOWLANE_BYTE: byte j of the int256 pshuf result (low lane, j<8) *)
+(* reduces to PSHUFB_OUT_BYTE. *)
+let PSHUF1_LOWLANE_BYTE = prove
+ (`!g m j. j < 8
+    ==> word_subword
+          (word_zx
+            (usimd16 (\i. if bit 7 i then word 0:byte
+                          else word_subword (g:int128) (8 * val (word_subword i (0,4):4 word),8))
+              (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256)
+          (8 * j,8):byte
+        = word_subword g (8 * val (EL j (TABLE_ENTRY m)),8)`,
+  REPEAT STRIP_TAC THEN ASM_SIMP_TAC[WSZ_OK] THEN
+  REWRITE_TAC[VAL4EQ8] THEN ASM_SIMP_TAC[PSHUFB_OUT_BYTE]);;
+
+(* VPMOVSXBD_LANE_J: the j<8 quantified form of VPMOVSXBD_LANE_EXTRACT. *)
+let VPMOVSXBD_LANE_J = prove
+ (`!(x:int64) j. j < 8
+    ==> word_subword (usimd8 (\b:byte. word_sx b:int32) x) (32*j,32):int32
+        = word_sx (word_subword x (8*j,8):byte)`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[ARITH_RULE `j < 8 <=> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`] THEN
+  STRIP_TAC THEN ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[VPMOVSXBD_LANE_EXTRACT]);;
+
+(* WZZ_LOW: word_zx(word_zx pshuf1):int64 keeps the low 8 bytes (j<8). *)
+let WZZ_LOW = prove
+ (`!(p:int256) j. j < 8
+    ==> word_subword (word_zx (word_zx p:int128):int64) (8*j,8):byte = word_subword p (8*j,8)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`word_zx (p:int256):int128`;`8*j`;`8`]
+    (INST_TYPE[`:64`,`:N`;`:128`,`:M`;`:8`,`:P`] WORD_SUBWORD_ZX)) THEN
+  MP_TAC(ISPECL [`p:int256`;`8*j`;`8`]
+    (INST_TYPE[`:128`,`:N`;`:256`,`:M`;`:8`,`:P`] WORD_SUBWORD_ZX)) THEN
+  REWRITE_TAC[DIMINDEX_8;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256] THEN
+  SUBGOAL_THEN `MIN (8*j+8) 128 <= 256 /\ MIN (8*j+8) 256 <= 128 /\ MIN(8*j+8) 128 <= 64` MP_TAC THENL
+   [POP_ASSUM MP_TAC THEN ARITH_TAC;
+    STRIP_TAC THEN ASM_REWRITE_TAC[] THEN
+    DISCH_THEN(fun th1 -> DISCH_THEN(fun th2 -> REWRITE_TAC[th2;th1]))]);;
+
+(* (STORE_LANE_MATCH and its table-dependent deps PSHUF1_BYTE_EQ_OUTLIST /     *)
+(*  LENGTH_TABLE_ENTRY are defined later, just after                          *)
+(*  LENGTH_MLDSA_REJ_UNIFORM_TABLE, since they need the table length.)        *)
+
 (* VPMOVMSKB on a 64-bit half: pack bit 7 of each of the 8 bytes into  *)
 (* a single byte. This is the eta4 analog of VMOVMSKPS_BYTE_EQ from PR  *)
 (* #1014. Used to express the result of VPMOVMSKB on the lower lane    *)
@@ -2287,6 +2360,47 @@ let LENGTH_MLDSA_REJ_UNIFORM_TABLE = prove
  (`LENGTH (mldsa_rej_uniform_table:byte list) = 2048`,
   REWRITE_TAC[mldsa_rej_uniform_table; LENGTH] THEN
   CONV_TAC NUM_REDUCE_CONV);;
+
+(* Table-length-dependent store-value lemmas (cheat-free, 2026-06-11);        *)
+(* see the STORE-VALUE LANE BRIDGE block above (WSZ_OK..STORE_LANE_MATCH).    *)
+(* These need LENGTH_MLDSA_REJ_UNIFORM_TABLE so they live here.               *)
+
+(* LENGTH_TABLE_ENTRY: a table entry is always 8 bytes (val m < 256 always). *)
+let LENGTH_TABLE_ENTRY = prove
+ (`!m:byte. LENGTH(TABLE_ENTRY m) = 8`,
+  GEN_TAC THEN REWRITE_TAC[TABLE_ENTRY; LENGTH_SUB_LIST; LENGTH_MLDSA_REJ_UNIFORM_TABLE] THEN
+  MP_TAC(ISPEC `m:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN ARITH_TAC);;
+
+(* PSHUF1_BYTE_EQ_OUTLIST: byte j of the pshuf result = EL j (PSHUFB_OUT_LIST). *)
+let PSHUF1_BYTE_EQ_OUTLIST = prove
+ (`!g m j. j < 8
+    ==> word_subword
+          (word_zx
+            (usimd16 (\i. if bit 7 i then word 0:byte
+                          else word_subword (g:int128) (8 * val (word_subword i (0,4):4 word),8))
+              (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256)
+          (8 * j,8):byte
+        = EL j (PSHUFB_OUT_LIST g m)`,
+  REPEAT STRIP_TAC THEN ASM_SIMP_TAC[PSHUF1_LOWLANE_BYTE] THEN
+  ASM_SIMP_TAC[PSHUFB_OUT_LIST_AS_MAP; EL_MAP; LENGTH_TABLE_ENTRY]);;
+
+(* STORE_LANE_MATCH: the capstone -- lane j (j<8) of the full vpshufb->vpmovsxbd *)
+(* store value equals word_sx of the j-th PSHUFB-gathered table byte. *)
+let STORE_LANE_MATCH = prove
+ (`!(g:int128) m j. j < 8
+    ==> word_subword
+          (usimd8 (\b:byte. word_sx b:int32)
+            (word_zx (word_zx
+              (word_zx
+                (usimd16 (\i. if bit 7 i then word 0:byte
+                              else word_subword g (8 * val (word_subword i (0,4):4 word),8))
+                  (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256)
+              :int128):int64))
+          (32*j,32):int32
+        = word_sx (EL j (PSHUFB_OUT_LIST g m))`,
+  REPEAT STRIP_TAC THEN
+  ASM_SIMP_TAC[VPMOVSXBD_LANE_J] THEN ASM_SIMP_TAC[WZZ_LOW] THEN
+  ASM_SIMP_TAC[PSHUF1_BYTE_EQ_OUTLIST]);;
 
 (* Byte-digitization of the 16-byte chunk the SIMD loop consumes per       *)
 (* iteration. The `vpmovzxbw (rsi,rcx)` load (rcx = 16*i, rsi = buf) reads  *)
