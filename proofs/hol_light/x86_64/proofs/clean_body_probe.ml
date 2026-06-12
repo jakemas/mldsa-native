@@ -793,3 +793,27 @@ let SUBITER_STORE_EXTEND = prove
    as assumptions, single goal. Next: apply fix (ii) for Step B, then
    MATCH_MP SUBITER_STORE_POSTCOND (store256 fact) + REWRITE[SUBITER1_VALUE] +
    SUBITER_STORE_EXTEND for the sub-iter 1 memory postcondition. *)
+
+(* === STEP B(ii) NEARLY LANDS — residual is a word_zx width on g (2026-06-12) =
+   Applied fix (ii): built Step B target with control in TABLE_ENTRY form, used
+   CTL_COLLAPSE to collapse the triple word_zx control from tab1_eq:
+     let CTL_COLLAPSE = prove
+      (`!n. word_zx (word_zx (word_zx (word n:int64):int128):int128):int128 =
+            word_zx (word_zx (word n:int64):int128):int128`,
+       GEN_TAC THEN GEN_REWRITE_TAC I [GSYM VAL_EQ] THEN REWRITE_TAC[VAL_WORD_ZX_GEN]
+       THEN SIMP_TAC[DIMINDEX_128] THEN REWRITE_TAC[MOD_MOD_REFL]);;
+   After REWRITE[pdef SYM] + REWRITE[tab1_eq] + REWRITE[CTL_COLLAPSE] +
+   usimd16-unfold + DEPTH BETA + SIMP[WORD_SUBWORD_SUBWORD;DIMINDEX_*] + NUM_REDUCE
+   + REWRITE[WORD_ZX_TRIVIAL], the equation residual is DOWN TO A SINGLE word_zx
+   width diff on the g operand:  L has word_zx:(256)->(128) wrapping
+   word_subword f0sub(0,128); R has word_zx:(64)->(128).  i.e. g appears as
+   word_zx(word_zx(word_subword f0sub(0,128))) with mismatched MIDDLE width
+   (256 vs 64) -- both equal as the 128-bit g.  CLOSE with a g-collapse lemma
+   analogous to CTL_COLLAPSE / WORD_SUBWORD_ZX, or prove
+     word_zx(word_zx(word_subword f0sub(0,128)):256):128
+       = word_zx(word_zx(word_subword f0sub(0,128)):64):128
+   via GSYM VAL_EQ + VAL_WORD_ZX_GEN + MOD_MOD_EXP_MIN (do NOT WORD_BLAST -- the
+   256-wide enclosing word_join makes it blow up).  Then REFL closes Step B(ii)
+   and pshuf1 is in EXACT SUBITER_STORE_POSTCOND shape (g = word_zx(word_zx
+   (word_subword f0sub(0,128))), m = word(val mask8 MOD 256)).
+   STATE: at s17, A + tab1_eq done, Step B(ii) one g-width-collapse from closing. *)
