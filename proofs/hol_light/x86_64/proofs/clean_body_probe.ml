@@ -886,3 +886,27 @@ let SUBITER_STORE_EXTEND = prove
    Also need LENGTH(ACC_IDX m) = LENGTH(REJ block) to match the SUB_LIST upper bound (both = the
    accept count). Then num_of_wordlist(REJ block) is the sub-iter 1 store; SUBITER_STORE_EXTEND
    folds it onto the res-prefix. *)
+
+(* === g NORMALIZED TO BARE SUBWORD (2026-06-12) ============================
+   Applied live: g_is_bare = `word_zx(word_zx(word_subword f0sub(0,128))):int128
+   = word_subword f0sub(0,128)` (REWRITE_TAC[WORD_ZX_TRIVIAL]); then
+   RULE_ASSUM_TAC(REWRITE_RULE[g_is_bare]) rewrites the store's g to the BARE
+   word_subword f0sub(0,128), which now matches gather-hyp asm 29
+   (`!j<8. word_subword(word_subword f0sub(0,128))(8j,8) = word_sub(word 4)(word_subword fn(8j,8))`).
+   STATE: at s17, store fact = read(bytes(res+4outlen0, 4*LENGTH(REJ block))) s17 =
+     num_of_wordlist(MAP word_sx (SUB_LIST(0, LENGTH(REJ block))
+       (PSHUFB_OUT_LIST (word_subword f0sub(0,128)) (word(val mask8 MOD 256))))).
+   FINAL STEP (next): MATCH_MP SUBITER_STORE_INT32 with
+     g := word_subword f0sub(0,128), m := word(val mask8 MOD 256),
+     vk := the 8 chunk0 nibbles [from F0NIB_BYTES asm 24: word_subword fn(8j,8)=word(nibble_j),
+           and SUBITER_BLOCK_BYTES: SUB_LIST(16i,4) inlist bytes -> chunk0 slices],
+     discharging the two forall hyps from asm 29 (gather) + asm 30 (maskbit, with the
+     bit-7-of-low-byte vs general-bit-j reconciliation) + vk<16 (nibble bound).
+   That yields MAP word_sx (SUB_LIST(0,LENGTH(ACC_IDX m))(PSHUFB_OUT_LIST g m)) =
+     MAP (\v. word_sx(word_sub(word 4)(word v)))(FILTER(<9)[nibbles]). Then:
+     (a) LENGTH(ACC_IDX m) = LENGTH(REJ block) [accept count = popcount, the mid-guard
+         chain already proves popcount = LENGTH(REJ_NIBBLES block); REJ_SAMPLE len = that];
+     (b) the FILTER-map RHS = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(16i,4) inlist) by the REJ_SAMPLE/
+         REJ_NIBBLES_ETA4 definitions (eta4 value-correctness, task #41).
+   => read(bytes(res+4outlen0,4*LENGTH(REJ block))) s17 = num_of_wordlist(REJ block);
+      SUBITER_STORE_EXTEND folds onto res-prefix. Sub-iter 1 store DONE. *)
