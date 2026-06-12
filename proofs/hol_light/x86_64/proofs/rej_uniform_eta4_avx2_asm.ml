@@ -1893,6 +1893,7 @@ let LENGTH_ACC_IDX_BITSUM = prove
     `bit 4 (m:byte)`;`bit 5 (m:byte)`;`bit 6 (m:byte)`;`bit 7 (m:byte)`] THEN
   ASM_REWRITE_TAC[FILTER; LENGTH; BITVAL_CLAUSES] THEN ARITH_TAC);;
 
+
 (* (STORE_LANE_MATCH and its table-dependent deps PSHUF1_BYTE_EQ_OUTLIST /     *)
 (*  LENGTH_TABLE_ENTRY are defined later, just after                          *)
 (*  LENGTH_MLDSA_REJ_UNIFORM_TABLE, since they need the table length.)        *)
@@ -2328,6 +2329,20 @@ let BITVAL_SUM_8_EQ_LENGTH_FILTER = prove
      LENGTH(FILTER (\x:byte. val x < 9) [a0;a1;a2;a3;a4;a5;a6;a7])`,
   REPEAT GEN_TAC THEN REWRITE_TAC[FILTER; LENGTH] THEN
   REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[LENGTH; BITVAL_CLAUSES]) THEN ARITH_TAC);;
+
+(* ACC_LENGTH_EQ_FILTER: given the per-lane mask<->accept correspondence, the accept   *)
+(* count LENGTH(ACC_IDX m) equals LENGTH(FILTER (<9) [the 8 nibble bytes]) = LENGTH     *)
+(* (REJ_NIBBLES block) = LENGTH(REJ_SAMPLE block). Width reconciliation for the         *)
+(* SUBITER_STORE_EXTEND fold. (Placed after BITVAL_SUM_8_EQ_LENGTH_FILTER which it uses.)*)
+let ACC_LENGTH_EQ_FILTER = prove
+ (`!(m:byte) (n0:byte) (n1:byte) (n2:byte) (n3:byte) (n4:byte) (n5:byte) (n6:byte) (n7:byte).
+     (bit 0 m <=> val n0 < 9) /\ (bit 1 m <=> val n1 < 9) /\ (bit 2 m <=> val n2 < 9) /\
+     (bit 3 m <=> val n3 < 9) /\ (bit 4 m <=> val n4 < 9) /\ (bit 5 m <=> val n5 < 9) /\
+     (bit 6 m <=> val n6 < 9) /\ (bit 7 m <=> val n7 < 9)
+     ==> LENGTH(ACC_IDX m) = LENGTH(FILTER (\x:byte. val x < 9) [n0;n1;n2;n3;n4;n5;n6;n7])`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[LENGTH_ACC_IDX_BITSUM] THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[BITVAL_SUM_8_EQ_LENGTH_FILTER]);;
 
 let SUBITER_OUTLEN_BOUND_1 = prove
  (`!(inlist:byte list) i.
