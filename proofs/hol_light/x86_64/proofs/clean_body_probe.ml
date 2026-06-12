@@ -710,3 +710,40 @@ let SUBITER_STORE_EXTEND = prove
         (REJ_SAMPLE_ETA4_BYTES (SUB_LIST (16*i,4) inlist)).
      Then SUBITER_STORE_EXTEND folds onto the res-prefix. (Repeat for sub-iters
      2,3,4 with their g from vpsrldq/vextracti128.)  *)
+
+(* === LIVE VALUE-BRIDGE PROGRESS (2026-06-12) ==============================
+   At the s17 store, Steps A and B of the value bridge were COMPLETED LIVE:
+     A. sx1 = usimd8 (\b. word_sx b) (word_zx (word_zx pshuf1))
+        TACTIC (works): SUBGOAL_THEN <that> ASSUME_TAC THENL
+          [FIRST_ASSUM(fun th -> match concl th with
+             Comb(Comb(_,l),Var("sx1",_)) when <l has word_join> -> SUBST1_TAC(SYM th) | _ -> NO_TAC)
+           THEN REWRITE_TAC[usimd8;usimd4;usimd2;DIMINDEX_*] THEN CONV_TAC WORD_BLAST; ALL_TAC]
+        NOTE: REABBREV_TAC stores the def as `<word_join> = sx1` (var on RHS), so match
+        Var("sx1",_) on the RHS and SUBST1_TAC(SYM th), NOT on the LHS.
+     B. pshuf1 = word_zx (usimd16 F (word_zx tab1))
+        TACTIC (works): build F/target programmatically from the pshuf1 word_join def
+        (extract g = word_zx(word_zx(word_subword f0sub(0,128))) via find_term), then
+        SUBGOAL_THEN ... THENL [FIRST_ASSUM SUBST1_TAC(SYM <pshuf1 word_join def>) THEN
+          REWRITE_TAC[usimd16;usimd8;usimd4;usimd2] THEN CONV_TAC(DEPTH_CONV BETA_CONV) THEN
+          SIMP_TAC[WORD_SUBWORD_SUBWORD;DIMINDEX_*;ARITH] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC]
+
+   *** BLOCKER for Step C (FIX NEEDED): the tab1 definition
+       `word_zx(word_zx(read(memory:>bytes64(word_add table (word(8*<idx>)))) s13)) = tab1`
+       was DROPPED by `PURGE_STALE_STATES_TAC ["s14"]` (step 14 area) / later purges,
+       because it references s13. Without it, Step C (word_zx tab1 = PSHUFB control
+       form via TABLE_VMOVQ_READ) cannot be done -- tab1 is now an unconstrained var.
+       Also the table-read `...s13 = num_of_wordlist mldsa_rej_uniform_table` was purged
+       (only s17's survives).
+   FIX: BEFORE any PURGE that drops s13, capture tab1_eq in-context:
+       - keep the s13 table-read (don't purge s13 until tab1_eq is established), OR
+       - right after `REABBREV_TAC tab1 = read YMM6 s14` (step 14), derive
+         tab1_eq : tab1 = word_zx(word_zx(word(num_of_wordlist(TABLE_ENTRY
+           (word(val mask8 MOD 256)))))):int256
+         via TABLE_VMOVQ_READ[table, val mask8 MOD 256, s13] (needs the s13 table-read +
+         val mask8 MOD 256 < 256) + REWRITE_RULE[IDX_RED_ETA4] on tab1's def + GSYM,
+         and ASSUME_TAC it (state-free: keyed on mask8/table only) so it survives PURGE.
+       Then Step C's control form follows from tab1_eq (the word_zx-collapse via GSYM
+       VAL_EQ + VAL_WORD_ZX_GEN + MOD_MOD_EXP_MIN, all in-context).
+   With A,B,C done, the store value = SUBITER_STORE_POSTCOND's arg (g:=word_zx(word_zx
+   (word_subword f0sub(0,128))), m:=word(val mask8 MOD 256)); apply it + REWRITE[SUBITER1_VALUE]
+   + SUBITER_STORE_EXTEND. *)
