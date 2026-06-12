@@ -747,3 +747,25 @@ let SUBITER_STORE_EXTEND = prove
    With A,B,C done, the store value = SUBITER_STORE_POSTCOND's arg (g:=word_zx(word_zx
    (word_subword f0sub(0,128))), m:=word(val mask8 MOD 256)); apply it + REWRITE[SUBITER1_VALUE]
    + SUBITER_STORE_EXTEND. *)
+
+(* === STEP C BLOCKER RESOLVED LIVE (2026-06-12) ============================
+   The tab1_eq capture works when done right after `REABBREV_TAC tab1 = read YMM6 s14`
+   and BEFORE purging s13. Exact live tactic (validated):
+     (* reprove IDX_RED_ETA4 if not OCaml-bound -- it lives in main file but the
+        let-name may not be in scope; reprove inline, it's tiny *)
+     let asl = <goal asms> in
+     let (_,tabdef) = find (\(_,t). tab1 def: word_zx(word_zx(read(bytes64 ...) s13)) = tab1) asl in
+     let (_,tread13) = find (\(_,t). read(memory:>bytes(table,2048)) s13 = num_of_wordlist mldsa_rej_uniform_table) asl in
+     let tvr = SPECL [`table`; `val mask8 MOD 256`; `s13`] TABLE_VMOVQ_READ in
+     let rlt = prove(`val (mask8:int64) MOD 256 < 256`, ARITH_TAC) in
+     let raw_eq = MP tvr (CONJ tread13 rlt) in
+     let tabdef' = REWRITE_RULE[IDX_RED_ETA4] tabdef in
+     let tab1_eq = GSYM(REWRITE_RULE[raw_eq] tabdef') in
+     e(ASSUME_TAC tab1_eq);;
+   RESULT (state-free, survives PURGE):
+     tab1 = word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY (word (val mask8 MOD 256))))))
+   With sx1=usimd8 (A), pshuf1=word_zx(usimd16 F (word_zx tab1)) (B), and tab1_eq,
+   the store value rewrites (REWRITE[B] then REWRITE[tab1_eq, with word_zx-collapse])
+   to SUBITER_STORE_POSTCOND's arg form with g=word_zx(word_zx(word_subword f0sub
+   (0,128))), m=word(val mask8 MOD 256). NOTE: IDX_RED_ETA4 is in the main file
+   but may need inline reproof if the OCaml let-name isn't in session scope. *)
