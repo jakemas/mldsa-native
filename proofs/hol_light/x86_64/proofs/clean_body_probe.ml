@@ -970,3 +970,26 @@ let SUBITER_STORE_EXTEND = prove
      ASSUME_TAC(REWRITE_RULE[ctl_eq](REWRITE_RULE[B] A)) -> sx1 in POSTCOND shape;
      g_is_bare + RULE_ASSUM_TAC(REWRITE_RULE[g_is_bare]); kbound; MP SUBITER_STORE_POSTCOND;
      >>> THEN the SUBITER_STORE_SPEC finish (this turn's plan). *)
+
+(* === FINISH INVENTORY (2026-06-12) — all lemmas for sub-iter 1 store exist ===
+   SUBITER_BLOCK_BYTES (16i+16<=LENGTH inlist /\ SUB_LIST(16i,16)=[16 chunk0 bytes])
+     ==> SUB_LIST(16i,4) inlist = [word_subword chunk0 (0,8);(8,8);(16,8);(24,8)]  (+blocks at 32/64/96)
+     -> gives SUBITER_STORE_SPEC's b0..b3 AND REJ_SAMPLE[b0..b3]=REJ_SAMPLE(SUB_LIST(16i,4)).
+   SUBITER_STORE_SPEC: gather+maskbit hyps ==> MAP word_sx(SUB_LIST(0,LENGTH(ACC_IDX m))
+     (PSHUFB_OUT_LIST g m)) = REJ_SAMPLE_ETA4_BYTES[b0..b3].
+   ACC_IDX m = FILTER (\i. bit i m) [0;1;2;3;4;5;6;7]  (accepted lane indices, LENGTH = accept count).
+   MASK_LOW_BIT, WORD_BYTE_MOD: maskbit-hyp discharge tools (in-context, mask8 concrete).
+   *** LENGTH RECONCILIATION (the one identity to nail): the store-postcond gave
+       k = LENGTH(REJ block); SUBITER_STORE_SPEC's SUB_LIST uses LENGTH(ACC_IDX m). Need
+       LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(16i,4) inlist)) = LENGTH(ACC_IDX (word(val mask8 MOD 256))).
+       BOTH = the accept count. The mid-guard chain (steps 18-22, already validated) proves
+       popcount(mask8 low byte) = LENGTH(REJ_NIBBLES_ETA4 block) and REJ_SAMPLE len = REJ_NIBBLES len;
+       LENGTH(ACC_IDX m) = popcount(m low byte) [ACC_IDX=FILTER bit, LENGTH FILTER = popcount].
+       So chain: LENGTH(ACC_IDX m) = popcount = LENGTH(REJ_NIBBLES block) = LENGTH(REJ_SAMPLE block).
+       BETTER: instantiate SUBITER_STORE_POSTCOND with k := LENGTH(ACC_IDX m) from the start (not
+       LENGTH(REJ block)) so SUB_LIST bounds match SUBITER_STORE_SPEC directly; then only need
+       k<=8 (LENGTH(ACC_IDX m)<=LENGTH[0..7]=8 trivially) and separately RAX = word(outlen0+k)
+       with k=accept count (the mid-guard already has this). Avoids the REJ/ACC_IDX bridge for the
+       store, deferring it to the RAX-counter/postcond-length step which already handles it.
+   NET: sub-iter 1 store is fully reduced to existing lemmas; no new math. Assemble as one
+   prove(clean_body_tm, ...) and run via loadt (NOT interactively — avoid the g pitfall). *)
