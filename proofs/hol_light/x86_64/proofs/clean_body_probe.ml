@@ -626,3 +626,33 @@ let SUBITER_STORE_EXTEND = prove
   REWRITE_TAC[DIMINDEX_32] THEN
   ANTS_TAC THENL [ARITH_TAC; ALL_TAC] THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN ASM_REWRITE_TAC[]);;
+
+(* === CLEAN_BODY ASSEMBLY PLAN (2026-06-12) ================================
+   The generic store machinery is COMPLETE and committed in the main file:
+     WSZ_OK, VAL4EQ8, PSHUF1_LOWLANE_BYTE, VPMOVSXBD_LANE_J, WZZ_LOW,
+     LENGTH_TABLE_ENTRY, PSHUF1_BYTE_EQ_OUTLIST, STORE_LANE_MATCH,
+     LENGTH_PSHUFB_OUT_LIST, STORE_LANE_EQ_REJBLOCK,
+     SUBITER_STORE_POSTCOND, SUBITER_STORE_EXTEND.
+
+   IN-CONTEXT per-sub-iter recipe at each vmovdqu store (NO new standalone
+   lemma needed -- verified the composition mechanically):
+     1. The stepped store value is a word_join nest; SUBGOAL_THEN it equals
+        `usimd8 (\b. word_sx b) <word_zx(word_zx(word_zx(usimd16 F (word_zx(word_zx
+         (word(num_of_wordlist(TABLE_ENTRY m)))))))) >` via the usimd8-unfold +
+        WORD_BLAST recipe (same as the validated read YMM1 s16 = usimd8... step),
+        AFTER rewriting pshuf to PSHUFB form [PSHUF1_STRUCT_USIMD + in-context
+        tab1/wzt control bridge, which carry the goal's state hyps].
+     2. MATCH_MP SUBITER_STORE_POSTCOND <that bytes256 store fact> -- unifies
+        g:=G(q), m:=M(q), k automatically; needs k<=8 (LENGTH_REJ_SAMPLE_ETA4_BYTES_4).
+     3. REWRITE[SUBITERn_VALUE] collapses num_of_wordlist(MAP word_sx(SUB_LIST...))
+        -> num_of_wordlist(REJ_SAMPLE_ETA4_BYTES[4-byte chunk]).   [VERIFIED via REWRITE_CONV]
+     4. SUBITER_STORE_EXTEND folds the block at res+4*outlen_so_far into the prefix.
+   After 4 sub-iters: REJ_SAMPLE_ETA4_BYTES_16_AS_4 recombines the 4 four-byte
+   blocks; REJ_SAMPLE_ETA4_BYTES_STEP_16 ties SUB_LIST(0,16i)++SUB_LIST(16i,16)
+   = SUB_LIST(0,16(i+1)). Then jmp pc+56 + ENSURES_FINAL_STATE_TAC.
+
+   CLEAN_BODY statement = BODY_CHEAT's (main file lines 4564-4606) restricted to
+   the clean i+1<N case (RIP post = pc+56, RCX post = word(16*(i+1))). The probe
+   here (clean_body_tm) is that exact spec; it reaches s22 (mid-guard discharged,
+   RIP s22 = pc+161, RAX = word(outlen0+block0)). Continue stepping the 4
+   sub-iter stores from s22 applying the recipe above. *)
