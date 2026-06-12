@@ -910,3 +910,30 @@ let SUBITER_STORE_EXTEND = prove
          REJ_NIBBLES_ETA4 definitions (eta4 value-correctness, task #41).
    => read(bytes(res+4outlen0,4*LENGTH(REJ block))) s17 = num_of_wordlist(REJ block);
       SUBITER_STORE_EXTEND folds onto res-prefix. Sub-iter 1 store DONE. *)
+
+(* === USE SUBITER_STORE_SPEC (not INT32) — gives REJ block DIRECTLY (2026-06-12) =
+   SUBITER_STORE_SPEC g m b0 b1 b2 b3:
+     (!j<8. bit j m <=> EL j [val b0 MOD16;val b0 DIV16;...;val b3 DIV16] < 9) /\
+     (!j<8. word_subword g (8j,8) = word_sub(word 4)(word(EL j [val b0 MOD16;...])))
+     ==> MAP word_sx (SUB_LIST(0,LENGTH(ACC_IDX m))(PSHUFB_OUT_LIST g m))
+         = REJ_SAMPLE_ETA4_BYTES [b0;b1;b2;b3]
+   This is BETTER than SUBITER_STORE_INT32 — RHS is the REJ block directly (no FILTER step).
+   APPLICATION (set up live, MP_TAC + ANTS_TAC + CONJ_TAC gives 2 hyp subgoals):
+     g := word_subword f0sub(0,128)   [after g_is_bare normalization]
+     m := word(val mask8 MOD 256)
+     b0..b3 := word_subword chunk0 (0,8),(8,8),(16,8),(24,8)   [the block's 4 input bytes]
+   Conclusion's MAP(SUB_LIST(0,LENGTH(ACC_IDX m))...) matches the store's MAP form
+   EXCEPT the SUB_LIST bound: store has LENGTH(REJ block), SPEC has LENGTH(ACC_IDX m).
+   These are equal (both = accept count); reconcile via the popcount/ACC_IDX length identity.
+   HYP 1 (maskbit): bit j (word(val mask8 MOD 256)) <=> EL j [chunk0 nibbles] < 9.
+     - mask8 = word_zx(word(SUM_32 bitval(bit7 f1bnd lanes))); the goal after VAL_WORD_ZX_GEN+
+       DIMINDEX+NUM_REDUCE is `word(val mask8 MOD 256) = word(SUM_32)` (byte) — close by noting
+       word:byte truncates, MASK_LOW_BIT (j<8): bit j (word(SUM_8)) <=> bit7(f1bnd lane j);
+       then asm30 (maskbit hyp) + asm24 (F0NIB_BYTES: fn byte=word(nibble), val=nibble<16) +
+       EL_CONV give EL j [nibbles] < 9.  [the SUM_32->low-byte is a byte WORD identity.]
+   HYP 2 (gather): word_subword g (8j,8) = word_sub(word 4)(word(EL j [nibbles])).
+     - asm29 (gather): word_subword(word_subword f0sub(0,128))(8j,8)=word_sub(word 4)(word_subword fn(8j,8));
+       rewrite word_subword fn(8j,8) via asm24 (F0NIB) = word(nibble_j); EL j [nibbles] = nibble_j.
+   Then MAP form -> REJ_SAMPLE_ETA4_BYTES[b0;b1;b2;b3] = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(16i,4) inlist)
+   [by asm11: SUB_LIST(16i,16)=[16 chunk0 bytes], take first 4 via SUB_LIST(0,4)/SUBITER_BLOCK_BYTES].
+   => store = num_of_wordlist(REJ block); SUBITER_STORE_EXTEND folds onto prefix. DONE. *)
