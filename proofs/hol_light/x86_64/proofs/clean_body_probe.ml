@@ -1048,3 +1048,26 @@ let SUBITER_STORE_EXTEND = prove
      THEN word(val mask8 MOD 256):byte = word SUM8, and MASK_LOW_BIT(8-term) closes with asm30+F0NIB.
    Gather + main subgoals are straightforward (asm29+F0NIB; SUBITER_BLOCK_BYTES + SUBITER_STORE_EXTEND).
    Reached: 3 subgoals live this turn, only this byte-arithmetic remains for sub-iter 1's store. *)
+
+(* === MASKBIT byte-arithmetic LEMMAS PROVEN (2026-06-12) ===================
+   All proven this turn (move to main file):
+     WORD_BYTE_MOD = |- !n. word(n MOD 256):byte = word n
+     WORD_ADD_256_BYTE = |- !a x. word(a + 256 * x):byte = word a
+       (ONCE_REWRITE[GSYM WORD_BYTE_MOD]; AP_TERM_TAC; MOD_MULT_ADD twice)
+     BIT_BYTE_VAL_MOD = |- !(x:int64) j. j<8 ==> (bit j (word(val x MOD 256):byte) <=> bit j x)
+     SUM8_LT = |- <8-term weighted bitval sum of bit7(f1bnd lanes 0..7)> < 256   (BITVAL_BOUND x8 + ARITH)
+     byte_eq = |- word SUM32 :byte = word SUM8 :byte
+       (GSYM WORD_BYTE_MOD both sides; AP_TERM; SUBGOAL SUM32 = SUM8 + 256*HIGH [explicit 24-term HIGH]
+        by ARITH_TAC; REWRITE[WORD_ADD_256_BYTE])
+     byte_eq_val = REWRITE_RULE[VAL_WORD;DIMINDEX_8](AP_TERM `val` byte_eq) = |- SUM32 MOD 2^8 = SUM8 MOD 2^8
+     sum32_mod = |- SUM32 MOD 256 = SUM8   (MP byte_eq_val + SUM8_LT; NUM_REDUCE; SIMP[MOD_LT])
+   maskbit byte-eq subgoal: word(val mask8 MOD 256):byte = word SUM8 :
+     GEN_REWRITE_TAC (LAND_CONV o RAND_CONV o LAND_CONV o RAND_CONV) [SYM m8def]  (* mask8 -> word_zx(word SUM32) *)
+     REWRITE[VAL_WORD_ZX_GEN;VAL_WORD;DIMINDEX_64]; REWRITE[MOD_MOD_EXP_MIN]; ONCE_DEPTH NUM_REDUCE;
+     AP_TERM_TAC  -> goal `SUM32 MOD <m> = SUM8`.  *** FINAL FRICTION: <m> literal vs sum32_mod's 256
+     don't ACCEPT-match (diff at deep path, MOD vs +). FIX: close with
+     `MP_TAC sum32_mod THEN CONV_TAC NUM_REDUCE_CONV THEN ARITH_TAC` (don't ACCEPT_TAC; let ARITH
+     reconcile the modulus literal), OR ensure the MOD arg is reduced to literal 256 before AP_TERM.
+   Then MASK_LOW_BIT(8-term) + case-split j + maskbit-hyp(asm30) + F0NIB(asm24) + VAL_BOUND closes maskbit.
+   STILL TODO: maskbit (1 ARITH-reconcile from done), gather subgoal (asm29+F0NIB), main (SUBITER_BLOCK_BYTES
+   + SUBITER_STORE_EXTEND). *)
