@@ -549,3 +549,30 @@ let STORE_LANE_MATCH = prove
   REPEAT STRIP_TAC THEN
   ASM_SIMP_TAC[VPMOVSXBD_LANE_J] THEN ASM_SIMP_TAC[WZZ_LOW] THEN
   ASM_SIMP_TAC[PSHUF1_BYTE_EQ_OUTLIST]);;
+
+(* === SUBITER->LANE CONNECTOR (2026-06-12, PROVEN, 0 hyps) ==================
+   STORE_LANE_EQ_REJBLOCK: ties STORE_LANE_MATCH to the exact SUB_LIST/MAP shape
+   of SUBITER1_VALUE's RHS, so YMM lane j (j<k<=8) = EL j (MAP word_sx
+   (SUB_LIST(0,k)(PSHUFB_OUT_LIST g m))) = EL j REJ_block (by SUBITER1_VALUE).
+   This is precisely STORE_BYTES256_NUM_OF_WORDLIST's lane-match hyp. *)
+
+let LENGTH_PSHUFB_OUT_LIST = prove
+ (`!g:int128. !m:byte. LENGTH(PSHUFB_OUT_LIST g m) = 8`,
+  REWRITE_TAC[PSHUFB_OUT_LIST_AS_MAP; LENGTH_MAP; LENGTH_TABLE_ENTRY]);;
+
+let STORE_LANE_EQ_REJBLOCK = prove
+ (`!(g:int128) m k j. j < k /\ k <= 8
+    ==> word_subword
+          (usimd8 (\b:byte. word_sx b:int32)
+            (word_zx (word_zx (word_zx (usimd16 (\i. if bit 7 i then word 0:byte
+                else word_subword g (8 * val (word_subword i (0,4):4 word),8))
+              (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256):int128):int64))
+          (32*j,32):int32
+        = EL j (MAP (\b:byte. word_sx b:int32) (SUB_LIST(0,k) (PSHUFB_OUT_LIST g m)))`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `j < 8` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_SIMP_TAC[STORE_LANE_MATCH] THEN
+  SUBGOAL_THEN `LENGTH(SUB_LIST(0,k)(PSHUFB_OUT_LIST (g:int128) m)) = k` ASSUME_TAC THENL
+   [REWRITE_TAC[LENGTH_SUB_LIST; LENGTH_PSHUFB_OUT_LIST] THEN ASM_ARITH_TAC;
+    ASM_SIMP_TAC[EL_MAP] THEN
+    ASM_SIMP_TAC[EL_SUB_LIST; LENGTH_PSHUFB_OUT_LIST; ADD_CLAUSES] THEN ASM_ARITH_TAC]);;
