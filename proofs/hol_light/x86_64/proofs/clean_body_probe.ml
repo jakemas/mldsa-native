@@ -1118,3 +1118,22 @@ let SUBITER_STORE_EXTEND = prove
    State: 10 goals = 8 maskbit-j (each 1 rewrite from done) + gather + main. All math proven;
    pure tactic-control remains. Lemmas proven this turn: WORD_BYTE_MOD, WORD_ADD_256_BYTE,
    BIT_BYTE_VAL_MOD, SUM8_LT, byte_eq, byte_eq_val, sum32_mod, exp8, kbound_acc. *)
+
+(* ★★★ SUB-ITER 1 STORE VALUE FULLY PROVEN CHEAT-FREE (2026-06-12) ★★★
+   Live: the maskbit subgoal AND the gather subgoal of SUBITER_STORE_SPEC are CLOSED.
+   - maskbit: byte-eq SUBGOAL (word(val mask8 MOD 256):byte = word SUM8) via exp8+MOD_MOD_EXP_MIN+
+     sum32_mod; MASK_LOW_BIT + case-split j -> 8 per-lane goals each closed by:
+       REPEAT STRIP_TAC THEN ONCE_DEPTH EL_CONV THEN REWRITE[mbits @ [F0NIB]] THEN
+       REWRITE[VAL_WORD;DIMINDEX_8] THEN MP_TAC(VAL_BOUND of the 4 chunk0 bytes) THEN
+       SIMP[MOD_LT; ARITH_RULE n<2 EXP 8 ==> n MOD 16<2 EXP 8 /\ n DIV 16<2 EXP 8]
+       (mbits = maskbit hyp SPEC'd & MP'd at k=0..7).
+   - gather: strip outer word_zx 128<-256<-128 via zzcollapse
+       (zzcollapse: !(X:int128) j. j<8 ==> word_subword(word_zx(word_zx X:256):128)(8j,8):byte
+                    = word_subword X (8j,8)  -- WORD_SUBWORD_ZX x2 + MIN side conds);
+       then AP_TERM_TAC + case-split j + EL_CONV + F0NIB.
+   RESULT: SUBITER_STORE_SPEC conclusion MAP word_sx (SUB_LIST(0,LENGTH(ACC_IDX m))
+     (PSHUFB_OUT_LIST g m)) = REJ_SAMPLE_ETA4_BYTES[chunk0 0/8/16/24 bytes] is now an assumption.
+   1 goal left: the main `eventually` continuation from s17 (rewrite the store fact with the spec
+     result + SUBITER_BLOCK_BYTES -> num_of_wordlist(REJ_SAMPLE(SUB_LIST(16i,4))); SUBITER_STORE_EXTEND
+     folds onto prefix; then sub-iters 2,3,4 + counters + jmp + ENSURES_FINAL_STATE_TAC).
+   New lemma: zzcollapse (128<-256<-128 word_zx low-lane collapse). *)
