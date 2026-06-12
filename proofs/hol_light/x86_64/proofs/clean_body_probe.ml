@@ -769,3 +769,27 @@ let SUBITER_STORE_EXTEND = prove
    to SUBITER_STORE_POSTCOND's arg form with g=word_zx(word_zx(word_subword f0sub
    (0,128))), m=word(val mask8 MOD 256). NOTE: IDX_RED_ETA4 is in the main file
    but may need inline reproof if the OCaml let-name isn't in session scope. *)
+
+(* === STEP B / tab1_eq INTERACTION (2026-06-12) ============================
+   GOTCHA: once tab1_eq (tab1 = word_zx(word_zx(word(num_of_wordlist(TABLE_ENTRY
+   (word(val mask8 MOD 256))))))) is an ASSUMPTION, the Step B SUBGOAL_THEN whose
+   SIMP_TAC[...] runs over the goal will EXPAND `word_zx tab1` in the pshuf1
+   word_join (LHS) to the triple-word_zx TABLE_ENTRY form, while the hand-built
+   target RHS still says `word_zx tab1` -> control-width mismatch -> Step B leaves
+   an open residual subgoal (2 subgoals).
+   TWO clean fixes (pick one):
+     (i) Do Step B (pshuf1 = word_zx(usimd16 F (word_zx tab1))) BEFORE capturing
+         tab1_eq -- i.e. right after step 15 REABBREV pshuf1, while tab1 is still
+         an opaque var. Then capture tab1_eq, then proceed. (Reorder.)
+     (ii) Build Step B's target with the control already in TABLE_ENTRY form
+         (substitute tab1_eq into the target's `word_zx tab1` -> the matching
+         word_zx(word_zx(word_zx(word(num_of_wordlist(TABLE_ENTRY ...)))))), so
+         both sides agree post-SIMP. Then the SUBITER_STORE_POSTCOND arg has
+         m = word(val mask8 MOD 256) directly (no further tab1 rewrite needed).
+   Fix (ii) is preferable: it lands pshuf1 in EXACTLY SUBITER_STORE_POSTCOND's
+   expected shape (control = word_zx(word_zx(word(num_of_wordlist(TABLE_ENTRY m))))),
+   so MATCH_MP SUBITER_STORE_POSTCOND applies with zero further massaging.
+   STATE when stopped: at s17 (store done), A (sx1=usimd8) + tab1_eq both present
+   as assumptions, single goal. Next: apply fix (ii) for Step B, then
+   MATCH_MP SUBITER_STORE_POSTCOND (store256 fact) + REWRITE[SUBITER1_VALUE] +
+   SUBITER_STORE_EXTEND for the sub-iter 1 memory postcondition. *)
