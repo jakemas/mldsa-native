@@ -1071,3 +1071,29 @@ let SUBITER_STORE_EXTEND = prove
    Then MASK_LOW_BIT(8-term) + case-split j + maskbit-hyp(asm30) + F0NIB(asm24) + VAL_BOUND closes maskbit.
    STILL TODO: maskbit (1 ARITH-reconcile from done), gather subgoal (asm29+F0NIB), main (SUBITER_BLOCK_BYTES
    + SUBITER_STORE_EXTEND). *)
+
+(* === MASKBIT byte-eq SUBGOAL SOLVED; tail overflows (2026-06-12) ===========
+   The word(val mask8 MOD 256):byte = word SUM8 SUBGOAL is now CLOSED in-context by:
+     let exp8 = prove(`(256:num) = 2 EXP 8`, CONV_TAC NUM_REDUCE_CONV);;
+     GEN_REWRITE_TAC (LAND_CONV o RAND_CONV o LAND_CONV o RAND_CONV) [SYM m8def] THEN
+     REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD; DIMINDEX_64; DIMINDEX_32] THEN
+     GEN_REWRITE_TAC (LAND_CONV o RAND_CONV o RAND_CONV) [exp8] THEN  (* inner MOD 256 -> MOD 2^8 *)
+     REWRITE_TAC[MOD_MOD_EXP_MIN] THEN                                (* MOD 2^32 MOD 2^8 -> MOD 2^MIN 32 8 *)
+     CONV_TAC(LAND_CONV(RAND_CONV(RAND_CONV NUM_REDUCE_CONV))) THEN   (* MIN 32 8 -> 8, only the exponent *)
+     REWRITE_TAC[GSYM exp8] THEN AP_TERM_TAC THEN ACCEPT_TAC sum32_mod
+   NOTE: this byte-eq is NOT a standalone prove() -- m8def is a goal assumption (carries the goal's
+   12 state hyps), so SYM m8def imports them -> 'additional assumptions in result'. MUST be a
+   SUBGOAL_THEN in the live flow.
+   *** REMAINING FRICTION: the maskbit TAIL after the byte-eq subgoal STACK-OVERFLOWS:
+     ASM_REWRITE_TAC[byte-eq] THEN MASK_LOW_BIT[\k.bit 7(word_subword f1bnd(8k,8))] THEN
+     case-split j (0..7) THEN ASM_SIMP[maskbit] THEN REWRITE[F0NIB;EL;HD;TL;VAL_WORD;DIMINDEX_8] THEN
+     NUM_REDUCE THEN VAL_BOUND x4 THEN ARITH_TAC
+     -> overflow (likely CONV_TAC(DEPTH_CONV NUM_REDUCE_CONV) or ASM_SIMP looping on the 8 large
+        lane terms, OR MASK_LOW_BIT's lambda BETA looping). FIX NEXT: after the byte-eq subgoal,
+        do the maskbit tail per-j WITHOUT a global DEPTH NUM_REDUCE -- isolate each j case, apply
+        maskbit hyp + F0NIB + a bounded VAL reduction. Or prove a standalone MASKBIT_LANE lemma
+        `j<8 ==> (bit j (word SUM8:byte) <=> EL j [nibbles]<9)` outside the big goal (SUM8/nibbles
+        are over f1bnd/chunk0 which are free vars -> clean prove(), no goal hyps) then ACCEPT in.
+   PROVED THIS TURN (all clean, no goal hyps): WORD_BYTE_MOD, WORD_ADD_256_BYTE, BIT_BYTE_VAL_MOD,
+   SUM8_LT, byte_eq, byte_eq_val, sum32_mod, exp8, kbound_acc. POSTCOND+SPEC applied -> 3 subgoals;
+   maskbit byte-eq done, tail 1 control-fix away; gather + main routine. *)
