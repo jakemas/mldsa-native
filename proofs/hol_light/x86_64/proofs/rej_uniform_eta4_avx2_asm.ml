@@ -1838,6 +1838,47 @@ let WZZ_LOW = prove
     STRIP_TAC THEN ASM_REWRITE_TAC[] THEN
     DISCH_THEN(fun th1 -> DISCH_THEN(fun th2 -> REWRITE_TAC[th2;th1]))]);;
 
+(* ZZCOLLAPSE: strip word_zx 128<-256<-128 on a low-lane byte subword (j<8); used in    *)
+(* the sub-iter store gather subgoal (the vpmovsxbd source g = word_zx(word_zx(...))).  *)
+let ZZCOLLAPSE = prove
+ (`!(X:int128) j. j < 8
+    ==> word_subword (word_zx (word_zx X:int256):int128) (8*j,8):byte = word_subword X (8*j,8)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`word_zx (X:int128):int256`;`8*j`;`8`]
+    (INST_TYPE[`:128`,`:N`;`:256`,`:M`;`:8`,`:P`] WORD_SUBWORD_ZX)) THEN
+  MP_TAC(ISPECL [`X:int128`;`8*j`;`8`]
+    (INST_TYPE[`:256`,`:N`;`:128`,`:M`;`:8`,`:P`] WORD_SUBWORD_ZX)) THEN
+  REWRITE_TAC[DIMINDEX_8;DIMINDEX_128;DIMINDEX_256] THEN
+  SUBGOAL_THEN `MIN (8*j+8) 128 <= 256 /\ MIN (8*j+8) 256 <= 128` MP_TAC THENL
+   [POP_ASSUM MP_TAC THEN ARITH_TAC;
+    STRIP_TAC THEN ASM_REWRITE_TAC[] THEN
+    DISCH_THEN(fun th1 -> DISCH_THEN(fun th2 -> REWRITE_TAC[th2;th1]))]);;
+
+(* Byte/mask arithmetic lemmas for the sub-iter store maskbit subgoal. *)
+let WORD_BYTE_MOD = prove
+ (`!n. word(n MOD 256):byte = word n`,
+  GEN_TAC THEN SUBGOAL_THEN `256 = 2 EXP dimindex(:8)` SUBST1_TAC THENL
+   [REWRITE_TAC[DIMINDEX_8] THEN CONV_TAC NUM_REDUCE_CONV; REWRITE_TAC[WORD_MOD_SIZE]]);;
+
+let WORD_ADD_256_BYTE = prove
+ (`!a x. word(a + 256 * x):byte = word a`,
+  REPEAT GEN_TAC THEN ONCE_REWRITE_TAC[GSYM WORD_BYTE_MOD] THEN
+  AP_TERM_TAC THEN REWRITE_TAC[MOD_MULT_ADD; ARITH_RULE `256 * x = x * 256`] THEN
+  REWRITE_TAC[MOD_MULT_ADD]);;
+
+let BIT_BYTE_VAL_MOD = prove
+ (`!(x:int64) j. j < 8 ==> (bit j (word(val x MOD 256):byte) <=> bit j x)`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[WORD_BYTE_MOD] THEN
+  SUBGOAL_THEN `word(val(x:int64)):byte = word_zx x` SUBST1_TAC THENL
+   [REWRITE_TAC[word_zx; WORD_VAL]; ALL_TAC] THEN
+  ASM_SIMP_TAC[BIT_WORD_ZX; DIMINDEX_8; DIMINDEX_64; ARITH_RULE `j < 8 ==> j < 64`]);;
+
+let LENGTH_ACC_IDX_LE_8 = prove
+ (`!m:byte. LENGTH(ACC_IDX m) <= 8`,
+  GEN_TAC THEN REWRITE_TAC[ACC_IDX] THEN
+  MP_TAC(ISPECL [`\i. bit i (m:byte)`; `[0;1;2;3;4;5;6;7]:num list`] LENGTH_FILTER) THEN
+  REWRITE_TAC[LENGTH] THEN ARITH_TAC);;
+
 (* (STORE_LANE_MATCH and its table-dependent deps PSHUF1_BYTE_EQ_OUTLIST /     *)
 (*  LENGTH_TABLE_ENTRY are defined later, just after                          *)
 (*  LENGTH_MLDSA_REJ_UNIFORM_TABLE, since they need the table length.)        *)

@@ -1150,3 +1150,70 @@ let SUBITER_STORE_EXTEND = prove
    1 goal remains: the main eventually continuation (s17 onward: sub-iters 2-4 same recipe with g
    from vpsrldq $8 (sub2) / vextracti128 $1 (sub3) / vpsrldq $8 of hi (sub4); counters; jmp pc+56;
    ENSURES_FINAL_STATE_TAC). ★ The cheat-free SIMD store VALUE for sub-iter 1 is fully proven. *)
+
+(* === NEW REUSABLE LEMMAS proven live this turn (2026-06-12) — persist as code ===
+   These close the maskbit/gather subgoals; move to main file (after VPMOVSXBD_LANE_J region). *)
+
+let WORD_BYTE_MOD = prove
+ (`!n. word(n MOD 256):byte = word n`,
+  GEN_TAC THEN SUBGOAL_THEN `256 = 2 EXP dimindex(:8)` SUBST1_TAC THENL
+   [REWRITE_TAC[DIMINDEX_8] THEN CONV_TAC NUM_REDUCE_CONV; REWRITE_TAC[WORD_MOD_SIZE]]);;
+
+let WORD_ADD_256_BYTE = prove
+ (`!a x. word(a + 256 * x):byte = word a`,
+  REPEAT GEN_TAC THEN ONCE_REWRITE_TAC[GSYM WORD_BYTE_MOD] THEN
+  AP_TERM_TAC THEN REWRITE_TAC[MOD_MULT_ADD; ARITH_RULE `256 * x = x * 256`] THEN
+  REWRITE_TAC[MOD_MULT_ADD]);;
+
+let BIT_BYTE_VAL_MOD = prove
+ (`!(x:int64) j. j < 8 ==> (bit j (word(val x MOD 256):byte) <=> bit j x)`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[WORD_BYTE_MOD] THEN
+  SUBGOAL_THEN `word(val(x:int64)):byte = word_zx x` SUBST1_TAC THENL
+   [REWRITE_TAC[word_zx; WORD_VAL]; ALL_TAC] THEN
+  ASM_SIMP_TAC[BIT_WORD_ZX; DIMINDEX_8; DIMINDEX_64; ARITH_RULE `j < 8 ==> j < 64`]);;
+
+(* zzcollapse: strip word_zx 128<-256<-128 on a low-lane byte subword (j<8). *)
+let ZZCOLLAPSE = prove
+ (`!(X:int128) j. j < 8
+    ==> word_subword (word_zx (word_zx X:int256):int128) (8*j,8):byte = word_subword X (8*j,8)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`word_zx (X:int128):int256`;`8*j`;`8`]
+    (INST_TYPE[`:128`,`:N`;`:256`,`:M`;`:8`,`:P`] WORD_SUBWORD_ZX)) THEN
+  MP_TAC(ISPECL [`X:int128`;`8*j`;`8`]
+    (INST_TYPE[`:256`,`:N`;`:128`,`:M`;`:8`,`:P`] WORD_SUBWORD_ZX)) THEN
+  REWRITE_TAC[DIMINDEX_8;DIMINDEX_128;DIMINDEX_256] THEN
+  SUBGOAL_THEN `MIN (8*j+8) 128 <= 256 /\ MIN (8*j+8) 256 <= 128` MP_TAC THENL
+   [POP_ASSUM MP_TAC THEN ARITH_TAC;
+    STRIP_TAC THEN ASM_REWRITE_TAC[] THEN
+    DISCH_THEN(fun th1 -> DISCH_THEN(fun th2 -> REWRITE_TAC[th2;th1]))]);;
+
+(* kbound_acc: the accept-count is <= 8 (FILTER over [0..7]). *)
+let LENGTH_ACC_IDX_LE_8 = prove
+ (`!m:byte. LENGTH(ACC_IDX m) <= 8`,
+  GEN_TAC THEN REWRITE_TAC[ACC_IDX] THEN
+  MP_TAC(ISPECL [`\i. bit i (m:byte)`; `[0;1;2;3;4;5;6;7]:num list`] LENGTH_FILTER) THEN
+  REWRITE_TAC[LENGTH] THEN ARITH_TAC);;
+
+(* === SUB-ITER STORE DISCHARGE RECIPE (reusable for sub-iters 1-4) ==========
+   After SUBITER_STORE_POSTCOND applied (store = num_of_wordlist(MAP word_sx
+   (SUB_LIST(0,LENGTH(ACC_IDX m))(PSHUFB_OUT_LIST g m)))), apply SUBITER_STORE_SPEC
+   [g; m; b0..b3] then ANTS_TAC THEN CONJ_TAC -> maskbit + gather subgoals:
+   MASKBIT (goal: !j<8. bit j m <=> EL j [nibbles]<9, m=word(val mask8 MOD 256)):
+     1. SUBGOAL word(val mask8 MOD 256):byte = word SUM8 [SUM8 = low-8 bitval terms]:
+          GEN_REWRITE (LAND o RAND o LAND o RAND)[SYM m8def]; REWRITE[VAL_WORD_ZX_GEN;VAL_WORD;
+          DIMINDEX_64;DIMINDEX_32]; GEN_REWRITE(LAND o RAND o RAND)[exp8]; REWRITE[MOD_MOD_EXP_MIN];
+          CONV(LAND o RAND o RAND NUM_REDUCE); ... AP_TERM_TAC; ACCEPT sum32_mod
+          where sum32_mod : SUM32 MOD 256 = SUM8 (from byte_eq:word SUM32:byte=word SUM8:byte
+          via SUM32=SUM8+256*HIGH + WORD_ADD_256_BYTE; byte_eq_val + SUM8_LT).
+     2. REWRITE goal with that byte-eq; MP_TAC(MASK_LOW_BIT \k.bit 7(word_subword f1bnd(8k,8)) j);
+        ASM_REWRITE; DEPTH BETA; NUM_REDUCE; DISCH_THEN SUBST1.
+     3. case-split j (0..7); per j: REPEAT STRIP; ONCE_DEPTH EL_CONV; REWRITE[maskbit-SPEC'd-k @ F0NIB];
+        REWRITE[VAL_WORD;DIMINDEX_8]; MP_TAC(VAL_BOUND of 4 chunk0 bytes); SIMP[MOD_LT;
+        ARITH_RULE n<2EXP8 ==> n MOD16<2EXP8/\n DIV16<2EXP8].  (NO ASM_MESON/ARITH on full ctx.)
+   GATHER (goal: !j<8. word_subword g (8j,8) = word_sub(word 4)(word(EL j [nibbles])), g=word_zx(word_zx
+     (word_subword f0sub(0,128)))):
+     REPEAT STRIP; ASM_SIMP[ZZCOLLAPSE]  (strips g's word_zx 128<-256<-128 to word_subword f0sub(0,128));
+     ASM_SIMP[<gather hyp asm29>]  (gives word_sub(word 4)(word_subword fn(8j,8)));
+     AP_TERM_TAC; case-split j; NUM_REDUCE; ONCE_DEPTH EL_CONV; REWRITE[F0NIB].
+   Then SUBITER_STORE_SPEC concl (MAP=REJ[b0..b3]) -> RULE_ASSUM rewrite the store; SUBITER_BLOCK_BYTES
+   (REJ[b0..b3]=REJ(SUB_LIST(16i,4))); SUBITER_STORE_EXTEND folds onto prefix. *)
