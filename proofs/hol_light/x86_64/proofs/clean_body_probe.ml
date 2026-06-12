@@ -861,3 +861,28 @@ let SUBITER_STORE_EXTEND = prove
        establish the link q <-> chunk0/f0sub/mask8 so SUBITER1_VALUE's LHS unifies. Inspect
        SUBITER1_VALUE's exact G/M and prove g = G(chunk-derived-q), m = M(...). This is the last
        sub-iter-1 value step. *)
+
+(* === FINAL COLLAPSE PATH for sub-iter 1 block (2026-06-12) =================
+   The store is now: read(...bytes(res+4outlen0, 4*LENGTH(REJ block))) s17 =
+     num_of_wordlist(MAP word_sx (SUB_LIST(0, LENGTH(REJ_SAMPLE_ETA4_BYTES
+       (SUB_LIST(16i,4) inlist))) (PSHUFB_OUT_LIST g m)))
+   where g = word_zx(word_zx(word_subword f0sub(0,128))), m = word(val mask8 MOD 256).
+   SUBITER1_VALUE does NOT auto-fire (its G(q)/M(q) keyed on a specific q; my g/m are the
+   opaque-f0sub forms and f0sub's simd2 def was purged).
+   USE SUBITER_STORE_INT32 INSTEAD (already in the file, takes per-lane hyps directly):
+     SUBITER_STORE_INT32 g m v0..v7:  (vk<16) /\ (bit j m <=> EL j [v0..v7]<9) /\
+       (word_subword g (8j,8) = word_sub(word 4)(word(EL j [v0..v7])))
+       ==> MAP word_sx (SUB_LIST(0,LENGTH(ACC_IDX m))(PSHUFB_OUT_LIST g m))
+           = MAP (\v. word_sx(word_sub(word 4)(word v))) (FILTER (\v. v<9) [v0..v7])
+   The gather hyp (asm 29) `word_subword(word_subword f0sub(0,128))(8j,8) = word_sub(word 4)
+   (word_subword fn(8j,8))` + F0NIB_BYTES (fn bytes = chunk0 nibbles mod/div 16) give the
+   v0..v7 = the 8 nibbles of SUB_LIST(16i,4) inlist (via SUBITER_BLOCK_BYTES). NOTE my g has an
+   extra word_zx(word_zx _) wrapper vs SUBITER_STORE_INT32's bare g -- but word_subword over the
+   double-word_zx(int128->int128) is identity, so rewrite g's wrapper away first (WORD_ZX_TRIVIAL
+   on the inner int128->int128) OR apply SUBITER_STORE_INT32 with g := word_zx(word_zx(word_subword
+   f0sub(0,128))) directly (the gather hyp is already stated at that g). Then the RHS
+   MAP word_sx(word_sub 4 .)(FILTER(<9)[nibbles]) = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(16i,4) inlist)
+   by the REJ_SAMPLE/REJ_NIBBLES/eta-map definitions (the value-correctness lemma, task #41).
+   Also need LENGTH(ACC_IDX m) = LENGTH(REJ block) to match the SUB_LIST upper bound (both = the
+   accept count). Then num_of_wordlist(REJ block) is the sub-iter 1 store; SUBITER_STORE_EXTEND
+   folds it onto the res-prefix. *)
