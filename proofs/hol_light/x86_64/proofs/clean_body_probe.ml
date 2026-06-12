@@ -1025,3 +1025,26 @@ let SUBITER_STORE_EXTEND = prove
      subword (WSZ on j<8 lanes) so it matches asm29; then asm29 + asm24(F0NIB) + EL reduce.
    MAIN subgoal: REWRITE the POSTCOND store with the spec conclusion (MAP=REJ_SAMPLE[b0..b3]),
      SUBITER_BLOCK_BYTES (REJ[b0..b3]=REJ(SUB_LIST(16i,4))), then SUBITER_STORE_EXTEND onto prefix. *)
+
+(* === MASKBIT: the SUM32->SUM8 reduction (2026-06-12, the one fiddly byte fact) ===
+   The maskbit subgoal needs bit j (word(val mask8 MOD 256):byte) <=> EL j [nibbles] < 9.
+   BIT_BYTE_VAL_MOD reduces to bit j mask8; mask8 = word_zx(word SUM32):int64 [SUM32 = 32-term
+   weighted bitval sum, weights 1,2,...,2^31]; BIT_WORD_ZX (j<8<64) -> bit j (word SUM32:int64).
+   PITFALL: REWRITE[BIT_WORD] on word SUM32 then ODD(SUM32 DIV 2^j) -> STACK OVERFLOW (32-term DIV).
+   CLEAN PLAN (prove as standalone, via prove()):
+     MASK32_LOW_BIT: |- !(p:num->bool) j. j<8 ==>
+        (bit j (word(SUM32 p):int64) <=> p j)   where SUM32 p = nsum/explicit 32-term weighted sum.
+     Proof idea: bitval(bit j (word n)) = (n DIV 2^j) MOD 2 [BITVAL_BIT_WORD, j<64]. For the explicit
+     SUM32 and concrete j (case-split 0..7), (SUM32 DIV 2^j) MOD 2 = bitval(p j) because terms with
+     weight 2^k for k<j contribute 0 after DIV (each < 2^j and they sum to < 2^j since geometric...
+     actually need the carry argument). SAFER: use the 8-term MASK_LOW_BIT by first proving
+     val mask8 MOD 256 = SUM8 (only low 8 terms) via:
+       val mask8 MOD 256 = val(word_zx(word SUM32)) MOD 256 = (SUM32 MOD 2^64) MOD 256 = SUM32 MOD 256
+       = SUM8  (because SUM32 = SUM8 + 256*HIGH, and SUM8 < 256 since SUM8 = sum of weights 1..128
+         times 0/1 bitvals, max 255; so SUM32 MOD 256 = (SUM8 + 256*HIGH) MOD 256 = SUM8 MOD 256 = SUM8).
+       The SUM8 = SUM32 MOD 256 step: REWRITE the explicit literal-weighted sum; the 8 high-weight
+       terms (256*_, 512*_, ...) are all ≡0 mod 256 -> MOD_ADD/MULT_MOD give SUM8 MOD 256; SUM8<256
+       by VAL_BOUND on the 8 bitvals (each<=1, weighted sum<=255) -> MOD_LT.
+     THEN word(val mask8 MOD 256):byte = word SUM8, and MASK_LOW_BIT(8-term) closes with asm30+F0NIB.
+   Gather + main subgoals are straightforward (asm29+F0NIB; SUBITER_BLOCK_BYTES + SUBITER_STORE_EXTEND).
+   Reached: 3 subgoals live this turn, only this byte-arithmetic remains for sub-iter 1's store. *)
