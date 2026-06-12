@@ -1137,3 +1137,16 @@ let SUBITER_STORE_EXTEND = prove
      result + SUBITER_BLOCK_BYTES -> num_of_wordlist(REJ_SAMPLE(SUB_LIST(16i,4))); SUBITER_STORE_EXTEND
      folds onto prefix; then sub-iters 2,3,4 + counters + jmp + ENSURES_FINAL_STATE_TAC).
    New lemma: zzcollapse (128<-256<-128 word_zx low-lane collapse). *)
+
+(* === SUB-ITER 1 BLOCK STORE = num_of_wordlist(REJ block) (2026-06-12) ======
+   After SUBITER_STORE_SPEC + RULE_ASSUM_TAC[specres], the block store is:
+     read(memory:>bytes(word_add res (word(4*outlen0)), 4*LENGTH(ACC_IDX(word(val mask8 MOD 256))))) s17
+       = num_of_wordlist(REJ_SAMPLE_ETA4_BYTES [word_subword chunk0 (0,8);(8,8);(16,8);(24,8)])
+   and the prefix store: read(bytes(res,4*outlen0)) s17 = num_of_wordlist(REJ_SAMPLE(SUB_LIST(0,16i))).
+   (To fold via SUBITER_STORE_EXTEND, need both widths as 4*LENGTH of int32 lists: the block width
+   is 4*LENGTH(ACC_IDX m); reconcile LENGTH(ACC_IDX m) = LENGTH(REJ_SAMPLE_ETA4_BYTES[4 bytes]) -- the
+   accept count, from the mid-guard popcount chain; and [chunk0 0/8/16/24]=SUB_LIST(16i,4) via
+   SUBITER_BLOCK_BYTES forward.) Then REJ_SAMPLE_ETA4_BYTES_STEP_16/APPEND combines prefix++block.
+   1 goal remains: the main eventually continuation (s17 onward: sub-iters 2-4 same recipe with g
+   from vpsrldq $8 (sub2) / vextracti128 $1 (sub3) / vpsrldq $8 of hi (sub4); counters; jmp pc+56;
+   ENSURES_FINAL_STATE_TAC). ★ The cheat-free SIMD store VALUE for sub-iter 1 is fully proven. *)
