@@ -1879,6 +1879,20 @@ let LENGTH_ACC_IDX_LE_8 = prove
   MP_TAC(ISPECL [`\i. bit i (m:byte)`; `[0;1;2;3;4;5;6;7]:num list`] LENGTH_FILTER) THEN
   REWRITE_TAC[LENGTH] THEN ARITH_TAC);;
 
+(* LENGTH_ACC_IDX_BITSUM: the accept count = sum of the 8 mask bits. Bridges          *)
+(* LENGTH(ACC_IDX m) to the bitval-sum used by the popcount / maskbit chain, hence to *)
+(* LENGTH(REJ_NIBBLES block) = LENGTH(REJ_SAMPLE block) for the SUBITER_STORE_EXTEND   *)
+(* width reconciliation.                                                              *)
+let LENGTH_ACC_IDX_BITSUM = prove
+ (`!m:byte. LENGTH(ACC_IDX m) =
+            bitval(bit 0 m) + bitval(bit 1 m) + bitval(bit 2 m) + bitval(bit 3 m) +
+            bitval(bit 4 m) + bitval(bit 5 m) + bitval(bit 6 m) + bitval(bit 7 m)`,
+  GEN_TAC THEN REWRITE_TAC[ACC_IDX] THEN
+  MAP_EVERY ASM_CASES_TAC
+   [`bit 0 (m:byte)`;`bit 1 (m:byte)`;`bit 2 (m:byte)`;`bit 3 (m:byte)`;
+    `bit 4 (m:byte)`;`bit 5 (m:byte)`;`bit 6 (m:byte)`;`bit 7 (m:byte)`] THEN
+  ASM_REWRITE_TAC[FILTER; LENGTH; BITVAL_CLAUSES] THEN ARITH_TAC);;
+
 (* (STORE_LANE_MATCH and its table-dependent deps PSHUF1_BYTE_EQ_OUTLIST /     *)
 (*  LENGTH_TABLE_ENTRY are defined later, just after                          *)
 (*  LENGTH_MLDSA_REJ_UNIFORM_TABLE, since they need the table length.)        *)
