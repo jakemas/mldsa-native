@@ -1217,3 +1217,25 @@ let LENGTH_ACC_IDX_LE_8 = prove
      AP_TERM_TAC; case-split j; NUM_REDUCE; ONCE_DEPTH EL_CONV; REWRITE[F0NIB].
    Then SUBITER_STORE_SPEC concl (MAP=REJ[b0..b3]) -> RULE_ASSUM rewrite the store; SUBITER_BLOCK_BYTES
    (REJ[b0..b3]=REJ(SUB_LIST(16i,4))); SUBITER_STORE_EXTEND folds onto prefix. *)
+
+(* === LENGTH(ACC_IDX m) = LENGTH(REJ block) reconciliation (2026-06-12) =====
+   For SUBITER_STORE_EXTEND, the block store width 4*LENGTH(ACC_IDX(word(val mask8 MOD 256)))
+   must equal 4*LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(16i,4) inlist)).
+   Facts available:
+     LENGTH_REJ_SAMPLE_ETA4_BYTES: LENGTH(REJ_SAMPLE_ETA4_BYTES l) = LENGTH(REJ_NIBBLES_ETA4 l)
+     REJ_NIBBLES_ETA4 l = FILTER (\x. val x < 9) (NIBBLES_OF_BYTES l)
+     ACC_IDX m = FILTER (\i. bit i m) [0;1;2;3;4;5;6;7]
+     maskbit hyp (asm30 via the byte form): bit i (word(val mask8 MOD 256)) <=> EL i [nibbles] < 9
+       (this is the maskbit subgoal we already PROVED as the SUBITER_STORE_SPEC hyp!)
+     NIBBLES_OF_BYTES [b0;b1;b2;b3] = [val-form 8 nibbles] (the EL-list); LENGTH 8.
+   PROOF: LENGTH(ACC_IDX m) = LENGTH(FILTER (\i. bit i m) [0..7])
+        = CARD{i<8 | bit i m} = CARD{i<8 | EL i [nibbles]<9}  [maskbit]
+        = LENGTH(FILTER (\x. val x<9) [the 8 nibble bytes])  [bijection i<->nibble_i, val(nibble byte)=nibble]
+        = LENGTH(REJ_NIBBLES_ETA4 [b0..b3]) = LENGTH(REJ_SAMPLE block).
+   Cleanest in HOL: there is very likely an EXISTING lemma tying popcount(mask)=LENGTH(REJ_NIBBLES block)
+   from the mid-guard chain (BITVAL_SUM_8_EQ_LENGTH_FILTER + LENGTH_FILTER_BYTE_NIBBLES_4_BYTES, both
+   in the file) -- AND LENGTH(ACC_IDX m)=popcount(m low byte) [ACC_IDX=FILTER bit, LENGTH FILTER bit
+   = number of set bits = word_popcount of the byte]. Compose those two. Search:
+     LENGTH(FILTER (\i. bit i m) [0..7]) = word_popcount (word(...)) -- or prove directly by
+     case-analysis on the 8 bits (BOOL_CASES x8, both sides EXPAND_NSUM/LENGTH-reduce, NUM_REDUCE).
+   This is the LAST math fact for the SUBITER_STORE_EXTEND fold; everything else is the proven recipe. *)
