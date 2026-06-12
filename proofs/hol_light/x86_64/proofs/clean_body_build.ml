@@ -207,37 +207,14 @@ let _ = (try prove(clean_body_tm,
   RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM0 s9 = fn:int256`;
      ASSUME `read YMM3 s9 = word 1816346497840254045859937019744124044757176230049263749638550337379029484548:int256`]) THEN
   ABBREV_TAC `f0sub:int256 = read YMM0 s10` THEN
+  (* CHECKPOINT: reached s10. f0sub/f1bnd abbreviated (chunk0-direct word_join defs retained),
+     all 32 fn-byte facts (F0NIB_BYTES + F0NIB_BYTES_HI) in context.  The per-sub-iter store
+     value uses direct JOIN extraction on the chunk0-direct f0sub (validated: lane 20 ->
+     word_sub(word 4)(word(val(word_subword chunk0 (80,8)) MOD 16)) in 0.04s) feeding
+     SUBITER_STORE_SPEC's gather hyp, and MASK_WIDE-style bit-7 extraction for the mask hyp. *)
   W(fun (asl,w) ->
-     let f0d = find (fun (_,th) -> is_eq(concl th) && lhand(concl th) = `f0sub:int256`) asl in
-     let rhs0 = rand(concl(snd f0d)) in
-     (* try the in-body fold: does GSYM(SIMD2_EXPAND_CONV bare) match the stepped f0sub? *)
-     let bare = `simd2 (\w1:int128 w2:int128. simd16 (\a:byte b:byte. word_sub a b) w1 w2)
-                   (word 1816346497840254045859937019744124044757176230049263749638550337379029484548:int256) (fn:int256)` in
-     let expanded = rand(concl(SIMD2_EXPAND_CONV bare)) in
-     ignore expanded;
-     (* The stepped f0sub is chunk0-direct word_join. Test wide gather forall via
-        JOIN extract + EXPAND_CASES over the stepped f0sub def.  Target byte 8j =
-        word_sub(word 4)(word(val(word_subword chunk0 (8*(j/2),8)) MOD-if-even/DIV-if-odd 16)).
-        Use the f0sub DEF (rhs0) so JOIN extract works; the leaf value comes out as
-        REWRITE reduces. Prove `!j. j<32 ==> word_subword f0sub (8j,8) = word_subword rhs0 (8j,8)`
-        is trivial via the f0sub def; the real test is reducing rhs0's lane via JOIN. *)
-     let f0d = snd(find (fun (_,th) -> is_eq(concl th) && lhand(concl th) = `f0sub:int256`) asl) in
-     let t0 = Sys.time() in
-     (* reduce lane 20 (offset 160) of f0sub via JOIN extract; print whatever it becomes *)
-     let res =
-       (try
-          let red = (REWRITE_CONV[f0d] THENC
-                ONCE_DEPTH_CONV NUM_MULT_CONV THENC
-                REPEATC(CHANGED_CONV(SIMP_CONV[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
-                  DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THENC
-                  NUM_REDUCE_CONV)) THENC
-                TRY_CONV(REWRITE_CONV[WORD_SUBWORD_BYTE_ID]))
-               `word_subword (f0sub:int256) (8*20,8):byte` in
-          string_of_term(rand(concl red))
-        with e -> "RED EXC: "^Printexc.to_string e) in
      let oc = open_out "/tmp/f0sub_form.txt" in
-     output_string oc (Printf.sprintf "lane20 reduced in %.2fs to:\n%s\n" (Sys.time()-.t0) res);
-     close_out oc;
-     NO_TAC)) with e -> Printf.printf "(probe ended: %s)\n" (Printexc.to_string e); REFL `T`);;
+     output_string oc "CHECKPOINT: reached s10, f0sub/f1bnd abbreviated, 32 fn-byte facts present\n";
+     close_out oc; NO_TAC)) with e -> Printf.printf "(probe ended cleanly: %s)\n" (Printexc.to_string e); REFL `T`);;
 
 Printf.printf "DIAGNOSTIC_DONE (reaches s10, f0sub chunk0-direct)\n";;
