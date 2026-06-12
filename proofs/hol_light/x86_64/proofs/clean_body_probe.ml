@@ -993,3 +993,35 @@ let SUBITER_STORE_EXTEND = prove
        store, deferring it to the RAX-counter/postcond-length step which already handles it.
    NET: sub-iter 1 store is fully reduced to existing lemmas; no new math. Assemble as one
    prove(clean_body_tm, ...) and run via loadt (NOT interactively — avoid the g pitfall). *)
+
+(* === SUB-ITER 1 STORE: SUBITER_STORE_POSTCOND + SUBITER_STORE_SPEC APPLIED (2026-06-12) ===
+   THIS TURN, fully live to 3 remaining subgoals:
+   - Replayed prologue->s17 in 3 batches (validated).
+   - Value bridge A,B,ctl_eq done; substituted -> sx1 in POSTCOND shape.
+   - KEY FIX for SUBITER_STORE_POSTCOND match: SPECL g := the INNER
+     word_zx(word_zx(word_subword f0sub(0,128))):int128  (NOT the bare form; g_is_bare only
+     rewrites the OUTER word_zx wrapper, the gather source inside usimd16 keeps the double-zx).
+     k := LENGTH(ACC_IDX(word(val mask8 MOD 256)));  kbound_acc := LENGTH(ACC_IDX ..)<=8
+     [REWRITE[ACC_IDX] + LENGTH_FILTER<=LENGTH[0..7]=8].
+     MP (CONJ kbound_acc store_exp) -> store reads num_of_wordlist(MAP word_sx
+        (SUB_LIST(0,LENGTH(ACC_IDX m))(PSHUFB_OUT_LIST g m))).  [DONE]
+   - SUBITER_STORE_SPEC SPECL [g; m; b0..b3=chunk0(0/8/16/24,8)] then ANTS_TAC + CONJ_TAC ->
+     3 subgoals: (1) maskbit, (2) gather, (3) main (with spec conclusion as hyp).
+   REUSABLE LEMMAS PROVEN THIS TURN (move to main file):
+     WORD_BYTE_MOD = |- !n. word(n MOD 256):byte = word n
+       (GEN_TAC THEN SUBGOAL 256=2 EXP dimindex(:8) [REWRITE DIMINDEX_8 + NUM_REDUCE] + WORD_MOD_SIZE)
+     BIT_BYTE_VAL_MOD = |- !(x:int64) j. j<8 ==> (bit j (word(val x MOD 256):byte) <=> bit j x)
+       (REWRITE[WORD_BYTE_MOD]; SUBGOAL word(val x):byte = word_zx x [word_zx;WORD_VAL];
+        ASM_SIMP[BIT_WORD_ZX;DIMINDEX_8;DIMINDEX_64; j<8==>j<64])
+   *** MASKBIT subgoal -- DO NOT use BIT_WORD on the 32-term SUM (stack overflow). Instead:
+       prove word(val mask8 MOD 256):byte = word(SUM8) where SUM8 = the 8 low bitval terms
+       (val mask8 MOD 256 = SUM32 MOD 256 = SUM8, high terms are multiples of 256), via the
+       mask8 def + explicit MOD arithmetic; THEN MASK_LOW_BIT (8-term) gives bit j = bit7(lane j);
+       asm30(maskbit) + asm24(F0NIB) + VAL_BOUND finish. The SUM8 extraction: SUM32 = SUM8 +
+       256*(higher), so SUM32 MOD 256 = SUM8 MOD 256 = SUM8 (SUM8<256). Prove via the def with
+       REWRITE[MOD_ADD ...]/ARITH on the explicit 32-term literal-weighted sum.
+   GATHER subgoal: word_subword g (8j,8) = word_sub(word 4)(word(EL j [nibbles])) -- g here is the
+     INNER word_zx(word_zx(word_subword f0sub(0,128))); first strip the double word_zx to the bare
+     subword (WSZ on j<8 lanes) so it matches asm29; then asm29 + asm24(F0NIB) + EL reduce.
+   MAIN subgoal: REWRITE the POSTCOND store with the spec conclusion (MAP=REJ_SAMPLE[b0..b3]),
+     SUBITER_BLOCK_BYTES (REJ[b0..b3]=REJ(SUB_LIST(16i,4))), then SUBITER_STORE_EXTEND onto prefix. *)
