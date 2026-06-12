@@ -835,3 +835,29 @@ let SUBITER_STORE_EXTEND = prove
       g-collapse needed). This is a term-construction fix, not a math gap.
    STATE: at s17; A (sx1=usimd8) + tab1_eq(C) DONE & sound; Step B(ii) open with
    a single g-operand word_zx-width mismatch from target mis-construction. *)
+
+(* === SUB-ITER 1 STORE VALUE BRIDGE — FULLY APPLIED LIVE (2026-06-12) =======
+   ALL of Steps A, B, C done live, AND SUBITER_STORE_POSTCOND applied:
+   A. sx1 = usimd8 word_sx (word_zx(word_zx pshuf1))  [SUBST1_TAC(SYM sx1-join-def) + usimd8 unfold + WORD_BLAST]
+   B. pshuf1 = word_zx(usimd16 F (word_zx tab1))  [build target with control = word_zx tab1
+      VERBATIM (NOT pre-expanded), g extracted by find_term; SUBST1_TAC(SYM pshuf1-join-def) +
+      usimd16 unfold + DEPTH BETA + SIMP[WORD_SUBWORD_SUBWORD;DIMINDEX_*] + NUM_REDUCE leaves ONE
+      residual `tab1_eq-RHS = tab1` which closes by REWRITE[tab1_eq]. KEY: keep control as
+      word_zx tab1 in the target; do NOT use the TABLE_ENTRY form there (that caused the earlier
+      g-width residual). tab1_eq fires automatically in SIMP to handle the def side.]
+   C. tab1_eq = word_zx tab1 = word_zx(word_zx(word(num_of_wordlist(TABLE_ENTRY(word(val mask8 MOD 256))))))
+      [in-context SUBGOAL: REWRITE[tab1_eq-assumption] + GSYM VAL_EQ + VAL_WORD_ZX_GEN + DIMINDEX +
+       MOD_MOD_EXP_MIN + NUM_REDUCE].
+   Then: rewrite A's RHS by B then C (ASSUME_TAC(REWRITE_RULE[C](REWRITE_RULE[B] A))) -> sx1 in the
+   EXACT SUBITER_STORE_POSTCOND arg shape (g=word_zx(word_zx(word_subword f0sub(0,128))),
+   m=word(val mask8 MOD 256)). kbound = LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(16i,4) inlist))<=8
+   [LENGTH_REJ_SAMPLE_ETA4_BYTES_BOUND + LENGTH_SUB_LIST + ARITH-RULE m<=4==>n<=2m==>n<=8]. Then
+   MP SUBITER_STORE_POSTCOND[addr,s17,g,m,k] (CONJ kbound store_exp) gives:
+     read(memory:>bytes(res+4outlen0, 4*LENGTH(REJ block))) s17
+       = num_of_wordlist(MAP word_sx (SUB_LIST(0,LENGTH(REJ block))(PSHUFB_OUT_LIST g m)))   [ACHIEVED]
+   *** REMAINING: SUBITER1_VALUE does NOT auto-fire to collapse MAP(...)->REJ_SAMPLE block,
+       because its G(q)/M(q) are keyed on a specific q (the f0nib-of-chunk0 value), whereas the
+       store's g=word_zx(word_zx(word_subword f0sub(0,128))), m=word(val mask8 MOD 256). Need to
+       establish the link q <-> chunk0/f0sub/mask8 so SUBITER1_VALUE's LHS unifies. Inspect
+       SUBITER1_VALUE's exact G/M and prove g = G(chunk-derived-q), m = M(...). This is the last
+       sub-iter-1 value step. *)
