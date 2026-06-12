@@ -656,3 +656,57 @@ let SUBITER_STORE_EXTEND = prove
    here (clean_body_tm) is that exact spec; it reaches s22 (mid-guard discharged,
    RIP s22 = pc+161, RAX = word(outlen0+block0)). Continue stepping the 4
    sub-iter stores from s22 applying the recipe above. *)
+
+(* === LIVE REPLAY NOTE (2026-06-12) ========================================
+   Replayed prologue -> s12 fresh in the fully-loaded main-file session: works.
+   ONE discrepancy vs the s11-12 block above: the vextracti128 $0 at step 12
+   yields  read YMM5 s12 = word_zx (word_subword f0sub (0,128))  -- an EXTRA
+   word_zx (128<-128, identity) wrapper. The probe's `SUBGOAL read YMM5 s12 =
+   word_subword f0sub (0,128) ... CONV_TAC WORD_BLAST` does NOT reliably add the
+   bare-subword assumption (WORD_BLAST proves it but the form isn't retained as
+   wanted). FIX that worked live:
+       let wzx_id = prove(`!x:int128. word_zx x:int128 = x`, REWRITE_TAC[WORD_ZX_TRIVIAL]);;
+       e(RULE_ASSUM_TAC(REWRITE_RULE[wzx_id]));;
+   This collapses YMM5 s12 to `word_subword f0sub (0,128)` (= g) directly, and
+   also simplifies any other word_zx:128->128 noise. Do this right after step 12
+   instead of the SUBGOAL_THEN. State after: s12, RIP=pc+116, g=word_subword
+   f0sub (0,128), gather hyp (asm) `!j<8. word_subword (word_subword f0sub(0,128))
+   (8j,8) = word_sub (word 4)(word_subword fn (8j,8))`, maskbit hyp present,
+   f0sub/f1bnd opaque. Ready for the R10 capture (step 13) + sub-iter 1 store. *)
+
+(* === LIVE STATE AT SUB-ITER 1 STORE (s17), 2026-06-12 =====================
+   Replayed live in the fully-loaded session through step 17 (the vmovdqu store).
+   The store fact (assumption):
+     read (memory :> bytes256 (word_add res (word (4 * outlen0)))) s17 = sx1
+   with the abbreviations:
+     sx1   = word_join(... word_sx (word_subword (word_zx (word_zx pshuf1)) (8j,8)) ...)
+             [the lane-extracted vpmovsxbd output -- matches USIMD8_SX_AS_JOIN /
+              VPMOVSXBD_LANE_J pattern]
+     pshuf1 = word_zx (word_join (if bit 7 (word_subword (word_zx tab1) (8j,8))
+                then word 0
+                else word_subword (word_zx (word_zx (word_subword f0sub (0,128))))
+                       (8 * val (word_subword (word_zx tab1) (8j,4)),8)) ...)
+             [the PSHUFB structural form: g = word_zx(word_zx(word_subword f0sub
+              (0,128))), control = word_zx tab1]  -- matches PSHUF1_STRUCT_USIMD.
+     tab1  = word_zx(word_zx(read(memory:>bytes64(word_add table
+                (word(8*val(word_zx(word_zx(word(val mask8 MOD 256))))))))) s13))
+             [the vmovq table gather -- matches TABLE_VMOVQ_READ after IDX_RED_ETA4].
+
+   REMAINING value bridge (in-context, the only non-mechanical step left):
+     A. sx1 = usimd8 (\b. word_sx b) (word_zx (word_zx pshuf1))
+        via REWRITE[sx1 def] THEN usimd8-unfold + WORD_BLAST  (validated prior session).
+     B. pshuf1 = word_zx (usimd16 F (word_zx tab1))   [PSHUF1_STRUCT_USIMD recipe:
+        REWRITE[usimd16;usimd8;usimd4;usimd2] + DEPTH BETA + SIMP[WORD_SUBWORD_SUBWORD;
+        DIMINDEX_*;ARITH] + NUM_REDUCE]  (proven prior session).
+     C. word_zx tab1 = word_zx(word_zx(word(num_of_wordlist(TABLE_ENTRY
+          (word(val mask8 MOD 256)))))):int128  [TABLE_VMOVQ_READ (table-read s13 +
+        val mask8 MOD 256 < 256) + IDX_RED_ETA4 + GSYM; then GSYM VAL_EQ + VAL_WORD_ZX_GEN
+        + MOD_MOD_EXP_MIN; carries the goal's state hyps so MUST be in-context].
+     Substituting A,B,C makes the store value EXACTLY SUBITER_STORE_POSTCOND's
+     argument with g := word_zx(word_zx(word_subword f0sub (0,128))),
+     m := word(val mask8 MOD 256).  Then:
+        MATCH_MP SUBITER_STORE_POSTCOND <store256 fact, k:=block len, k<=8>
+        THEN REWRITE[SUBITER1_VALUE]  ==>  the 4*k stored bytes = num_of_wordlist
+        (REJ_SAMPLE_ETA4_BYTES (SUB_LIST (16*i,4) inlist)).
+     Then SUBITER_STORE_EXTEND folds onto the res-prefix. (Repeat for sub-iters
+     2,3,4 with their g from vpsrldq/vextracti128.)  *)
