@@ -817,3 +817,21 @@ let SUBITER_STORE_EXTEND = prove
    and pshuf1 is in EXACT SUBITER_STORE_POSTCOND shape (g = word_zx(word_zx
    (word_subword f0sub(0,128))), m = word(val mask8 MOD 256)).
    STATE: at s17, A + tab1_eq done, Step B(ii) one g-width-collapse from closing. *)
+
+(* === CORRECTION on the g-width residual (2026-06-12) ======================
+   The Step B(ii) residual is NOT closed by a naive word_zx collapse:
+   `word_zx(word_zx x:int256):int128 = word_zx(word_zx x:int64):int128` is FALSE
+   in general (G_COLLAPSE proof fails) -- truncating the 128-bit g to 64 bits
+   loses g's high half, and word_subword g (8*val(EL j ..),8) can index up to
+   byte 15 (val nibble < 16 => 8*15=120 < 128), so the high half matters.
+   => the L (256-middle) vs R (64-middle) word_zx on g means my hand-built target
+      extracted g with a wrong intermediate width, OR the SIMP introduced a 64
+      from somewhere. NEXT: inspect both g-operands fully (the LHS comes from the
+      stepped pshuf1 def via SUBST; the RHS from the hand-built target's `g` =
+      find_term'd word_zx(word_zx(word_subword f0sub(0,128)))). Make the target's
+      g use the SAME nesting as the def's g (extract the ENTIRE g subterm incl.
+      its exact word_zx widths from the def, don't reconstruct it). Then the two
+      sides match and Step B(ii) closes by the usimd/SUBWORD reduction alone (no
+      g-collapse needed). This is a term-construction fix, not a math gap.
+   STATE: at s17; A (sx1=usimd8) + tab1_eq(C) DONE & sound; Step B(ii) open with
+   a single g-operand word_zx-width mismatch from target mis-construction. *)
