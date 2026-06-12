@@ -576,3 +576,53 @@ let STORE_LANE_EQ_REJBLOCK = prove
    [REWRITE_TAC[LENGTH_SUB_LIST; LENGTH_PSHUFB_OUT_LIST] THEN ASM_ARITH_TAC;
     ASM_SIMP_TAC[EL_MAP] THEN
     ASM_SIMP_TAC[EL_SUB_LIST; LENGTH_PSHUFB_OUT_LIST; ADD_CLAUSES] THEN ASM_ARITH_TAC]);;
+
+(* === SINGLE-STORE FULL BRIDGE + MEMORY COMPOSE (2026-06-12, PROVEN) ========
+   SUBITER_STORE_POSTCOND: bytes256 store value (PSHUFB pipeline form), k<=8
+     => read(bytes(A,4k)) = num_of_wordlist(MAP word_sx (SUB_LIST(0,k)(PSHUFB_OUT_LIST g m))).
+     Lane-match discharged internally via STORE_LANE_EQ_REJBLOCK.
+   SUBITER_STORE_EXTEND: fold a fresh int32 block at res+4|prefix| into the prefix
+     => read(bytes(res, 4|prefix|+4|block|)) = num_of_wordlist(APPEND prefix block).
+   Together with SUBITER1_VALUE (block = REJ_SAMPLE block) and REJ_SAMPLE_ETA4_BYTES_APPEND
+   these give one sub-iter's extended-prefix memory postcondition end to end. *)
+
+let SUBITER_STORE_POSTCOND = prove
+ (`!A s (g:int128) m k.
+     k <= 8 /\
+     read (memory :> bytes256 A) s =
+       (usimd8 (\b:byte. word_sx b:int32)
+            (word_zx (word_zx (word_zx (usimd16 (\i. if bit 7 i then word 0:byte
+                else word_subword g (8 * val (word_subword i (0,4):4 word),8))
+              (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256):int128):int64))
+     ==> read (memory :> bytes(A, 4 * k)) s =
+         num_of_wordlist (MAP (\b:byte. word_sx b:int32) (SUB_LIST(0,k) (PSHUFB_OUT_LIST g m)))`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  MP_TAC(ISPECL [`A:int64`;
+    `usimd8 (\b:byte. word_sx b:int32)
+            (word_zx (word_zx (word_zx (usimd16 (\i. if bit 7 i then word 0:byte
+                else word_subword (g:int128) (8 * val (word_subword i (0,4):4 word),8))
+              (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256):int128):int64)`;
+    `MAP (\b:byte. word_sx b:int32) (SUB_LIST(0,k) (PSHUFB_OUT_LIST (g:int128) m))`;
+    `k:num`; `s:x86state`] STORE_BYTES256_NUM_OF_WORDLIST) THEN
+  ASM_REWRITE_TAC[] THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[LENGTH_MAP; LENGTH_SUB_LIST; LENGTH_PSHUFB_OUT_LIST] THEN
+    CONJ_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    REPEAT STRIP_TAC THEN MATCH_MP_TAC STORE_LANE_EQ_REJBLOCK THEN ASM_REWRITE_TAC[];
+    DISCH_THEN(fun th -> REWRITE_TAC[th])]);;
+
+let SUBITER_STORE_EXTEND = prove
+ (`!res s (prefix:int32 list) (block:int32 list).
+     read (memory :> bytes(res, 4 * LENGTH prefix)) s = num_of_wordlist prefix /\
+     read (memory :> bytes(word_add res (word (4 * LENGTH prefix)), 4 * LENGTH block)) s
+       = num_of_wordlist block
+     ==> read (memory :> bytes(res, 4 * LENGTH prefix + 4 * LENGTH block)) s
+         = num_of_wordlist (APPEND prefix block)`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  MP_TAC(ISPECL [`memory:(x86state,int64->byte)component`; `res:int64`; `s:x86state`;
+                 `prefix:int32 list`; `block:int32 list`;
+                 `4 * LENGTH(prefix:int32 list)`; `4 * LENGTH(block:int32 list)`]
+        (INST_TYPE [`:32`,`:N`] BYTES_EQ_NUM_OF_WORDLIST_APPEND)) THEN
+  REWRITE_TAC[DIMINDEX_32] THEN
+  ANTS_TAC THENL [ARITH_TAC; ALL_TAC] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN ASM_REWRITE_TAC[]);;

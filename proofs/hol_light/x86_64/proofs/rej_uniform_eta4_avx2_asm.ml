@@ -2433,6 +2433,55 @@ let STORE_LANE_EQ_REJBLOCK = prove
     ASM_SIMP_TAC[EL_SUB_LIST; LENGTH_PSHUFB_OUT_LIST; ADD_CLAUSES] THEN
     ASM_ARITH_TAC]);;
 
+(* SUBITER_STORE_POSTCOND: the full single-store value bridge. Given the     *)
+(* bytes256 read of the destination equals the vpshufb->vpmovsxbd store      *)
+(* value (PSHUFB pipeline form) and k<=8, the 4k stored bytes = the          *)
+(* num_of_wordlist of the k-element accepted block. Lane-match is discharged *)
+(* internally via STORE_LANE_EQ_REJBLOCK.                                    *)
+let SUBITER_STORE_POSTCOND = prove
+ (`!A s (g:int128) m k.
+     k <= 8 /\
+     read (memory :> bytes256 A) s =
+       (usimd8 (\b:byte. word_sx b:int32)
+            (word_zx (word_zx (word_zx (usimd16 (\i. if bit 7 i then word 0:byte
+                else word_subword g (8 * val (word_subword i (0,4):4 word),8))
+              (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256):int128):int64))
+     ==> read (memory :> bytes(A, 4 * k)) s =
+         num_of_wordlist (MAP (\b:byte. word_sx b:int32) (SUB_LIST(0,k) (PSHUFB_OUT_LIST g m)))`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  MP_TAC(ISPECL [`A:int64`;
+    `usimd8 (\b:byte. word_sx b:int32)
+            (word_zx (word_zx (word_zx (usimd16 (\i. if bit 7 i then word 0:byte
+                else word_subword (g:int128) (8 * val (word_subword i (0,4):4 word),8))
+              (word_zx (word_zx (word (num_of_wordlist (TABLE_ENTRY m)):int64):int128):int128)):int256):int128):int64)`;
+    `MAP (\b:byte. word_sx b:int32) (SUB_LIST(0,k) (PSHUFB_OUT_LIST (g:int128) m))`;
+    `k:num`; `s:x86state`] STORE_BYTES256_NUM_OF_WORDLIST) THEN
+  ASM_REWRITE_TAC[] THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[LENGTH_MAP; LENGTH_SUB_LIST; LENGTH_PSHUFB_OUT_LIST] THEN
+    CONJ_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    REPEAT STRIP_TAC THEN MATCH_MP_TAC STORE_LANE_EQ_REJBLOCK THEN ASM_REWRITE_TAC[];
+    DISCH_THEN(fun th -> REWRITE_TAC[th])]);;
+
+(* SUBITER_STORE_EXTEND: fold a freshly-stored int32 block into the running  *)
+(* output prefix (both are int32 lists; the new block sits at res+4*|prefix|).*)
+let SUBITER_STORE_EXTEND = prove
+ (`!res s (prefix:int32 list) (block:int32 list).
+     read (memory :> bytes(res, 4 * LENGTH prefix)) s = num_of_wordlist prefix /\
+     read (memory :> bytes(word_add res (word (4 * LENGTH prefix)), 4 * LENGTH block)) s
+       = num_of_wordlist block
+     ==> read (memory :> bytes(res, 4 * LENGTH prefix + 4 * LENGTH block)) s
+         = num_of_wordlist (APPEND prefix block)`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  MP_TAC(ISPECL [`memory:(x86state,int64->byte)component`; `res:int64`; `s:x86state`;
+                 `prefix:int32 list`; `block:int32 list`;
+                 `4 * LENGTH(prefix:int32 list)`; `4 * LENGTH(block:int32 list)`]
+        (INST_TYPE [`:32`,`:N`] BYTES_EQ_NUM_OF_WORDLIST_APPEND)) THEN
+  REWRITE_TAC[DIMINDEX_32] THEN
+  ANTS_TAC THENL [ARITH_TAC; ALL_TAC] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
+  ASM_REWRITE_TAC[]);;
+
 (* Byte-digitization of the 16-byte chunk the SIMD loop consumes per       *)
 (* iteration. The `vpmovzxbw (rsi,rcx)` load (rcx = 16*i, rsi = buf) reads  *)
 (* bytes128 at buf + 16*i; this lemma identifies the 16 byte-subwords of    *)
