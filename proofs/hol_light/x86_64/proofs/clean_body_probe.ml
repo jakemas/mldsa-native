@@ -1097,3 +1097,24 @@ let SUBITER_STORE_EXTEND = prove
    PROVED THIS TURN (all clean, no goal hyps): WORD_BYTE_MOD, WORD_ADD_256_BYTE, BIT_BYTE_VAL_MOD,
    SUM8_LT, byte_eq, byte_eq_val, sum32_mod, exp8, kbound_acc. POSTCOND+SPEC applied -> 3 subgoals;
    maskbit byte-eq done, tail 1 control-fix away; gather + main routine. *)
+
+(* === MASKBIT reduced to 8 trivial bit-facts (2026-06-12) ===================
+   FULL live progress: prologue->s17, value bridge (A,B,ctl_eq), SUBITER_STORE_POSTCOND
+   (g=inner double-zx, k=LENGTH(ACC_IDX m), kbound_acc), SUBITER_STORE_SPEC set up (3 subgoals),
+   maskbit byte-eq subgoal CLOSED (exp8+MOD_MOD_EXP_MIN+sum32_mod), MASK_LOW_BIT applied.
+   The maskbit goal is now the per-lane fact, then case-split j (0..7) reduced each to:
+       goal_k:  bit 7 (word_subword f1bnd (8*k,8)) <=> val (word_subword chunk0 (..)) MOD/DIV 16 < 9
+   This is EXACTLY maskbit-hyp(asm30) at k composed with F0NIB(asm24) [fn byte = word(nibble),
+   val(word nibble)=nibble since nibble<16]. Each closes by:
+       REWRITE_TAC[<maskbit SPEC'd & MP'd at k, k=0..7>] THEN REWRITE_TAC[F0NIB] THEN
+       REWRITE_TAC[VAL_WORD;DIMINDEX_8] THEN
+       (the nibble<256 reduction: val(word(val b MOD 16))=val b MOD 16 needs val b MOD 16 < 256,
+        from VAL_BOUND b < 256; use SIMP[MOD_LT] with that, NOT ASM_MESON -> times out on big ctx)
+   *** DO NOT use ASM_MESON/ARITH_TAC with the full goal context here -- the 30+ assumptions
+       (incl the 33-term mask8 def, the eventually-goal) make them blow up / time out.
+       Instead: after maskbit+F0NIB rewrite each goal_k is `bit7 <=> val(word n) < 9` with
+       n = val b MOD/DIV 16; close with `SUBGOAL n < 16 [VAL_BOUND b + ARITH] THEN
+       ASM_SIMP[VAL_WORD_EQ-ish / MOD_LT]` keeping the context OUT of the heavy tac.
+   State: 10 goals = 8 maskbit-j (each 1 rewrite from done) + gather + main. All math proven;
+   pure tactic-control remains. Lemmas proven this turn: WORD_BYTE_MOD, WORD_ADD_256_BYTE,
+   BIT_BYTE_VAL_MOD, SUM8_LT, byte_eq, byte_eq_val, sum32_mod, exp8, kbound_acc. *)
