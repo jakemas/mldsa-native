@@ -102,6 +102,47 @@ let LEN_RECONCILE = prove
     DISCH_THEN SUBST1_TAC THEN
     REWRITE_TAC[LENGTH_FILTER_BYTE_NIBBLES_4_BYTES; LENGTH_REJ_SAMPLE_ETA4_BYTES]]);;
 
+(* SUBITER_FOLD_STEP: reusable fold of one sub-iter's REJ block onto the running prefix.
+   Given (a) the accept-count = block length [from LEN_RECONCILE], (b) the prefix store
+   read(bytes(res, 4*LEN(REJ prefixbytes))) = nwl(REJ prefixbytes), and (c) this sub-iter's
+   block store read(bytes(res + 4*LEN(REJ prefixbytes), 4*LEN(ACC_IDX m))) = nwl(REJ blk),
+   conclude read(bytes(res, 4*LEN(REJ (prefixbytes++blk)))) = nwl(REJ (prefixbytes++blk)).
+   Applies identically to all 4 sub-iters (prefixbytes = SUB_LIST(0,16i+4k), blk = next 4 bytes).
+   Pair with REJ_PREFIX_STEP_4 (below) to turn prefixbytes++blk back into SUB_LIST(0,16i+4(k+1)). *)
+let SUBITER_FOLD_STEP = prove
+ (`!res s (m:byte) (blk:byte list) (prefixbytes:byte list).
+     LENGTH(ACC_IDX m) = LENGTH(REJ_SAMPLE_ETA4_BYTES blk:int32 list) /\
+     read(memory:>bytes(res, 4*LENGTH(REJ_SAMPLE_ETA4_BYTES prefixbytes:int32 list))) s =
+       num_of_wordlist(REJ_SAMPLE_ETA4_BYTES prefixbytes) /\
+     read(memory:>bytes(word_add res (word(4*LENGTH(REJ_SAMPLE_ETA4_BYTES prefixbytes:int32 list))),
+                        4*LENGTH(ACC_IDX m))) s =
+       num_of_wordlist(REJ_SAMPLE_ETA4_BYTES blk)
+     ==> read(memory:>bytes(res, 4*LENGTH(REJ_SAMPLE_ETA4_BYTES(APPEND prefixbytes blk):int32 list))) s =
+         num_of_wordlist(REJ_SAMPLE_ETA4_BYTES(APPEND prefixbytes blk))`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  MP_TAC(ISPECL [`res:int64`; `s:x86state`;
+                 `REJ_SAMPLE_ETA4_BYTES prefixbytes:int32 list`;
+                 `REJ_SAMPLE_ETA4_BYTES blk:int32 list`] SUBITER_STORE_EXTEND) THEN
+  ANTS_TAC THENL
+   [ASM_REWRITE_TAC[] THEN
+    FIRST_X_ASSUM(fun th -> if can(find_term(fun u->u=`ACC_IDX (m:byte)`)) (concl th)
+                            then MP_TAC th else NO_TAC) THEN
+    ASM_REWRITE_TAC[];
+    REWRITE_TAC[REJ_SAMPLE_ETA4_BYTES_APPEND; LENGTH_APPEND;
+                ARITH_RULE `4*a+4*b = 4*(a+b)`]]);;
+
+(* REJ_PREFIX_STEP_4: SUB_LIST(0,16i+4k) ++ SUB_LIST(16i+4k,4) = SUB_LIST(0,16i+4(k+1)) at the
+   REJ_SAMPLE level. After SUBITER_FOLD_STEP yields nwl(REJ(SUB_LIST(0,n) ++ SUB_LIST(n,4))),
+   rewrite by GSYM REJ_PREFIX_STEP_4 (with n = 16i+4k) back to nwl(REJ(SUB_LIST(0,n+4))). *)
+let REJ_PREFIX_STEP_4 = prove
+ (`!(inlist:byte list) n.
+     REJ_SAMPLE_ETA4_BYTES (SUB_LIST (0, n+4) inlist):int32 list =
+     APPEND (REJ_SAMPLE_ETA4_BYTES (SUB_LIST (0,n) inlist))
+            (REJ_SAMPLE_ETA4_BYTES (SUB_LIST (n,4) inlist))`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[REWRITE_RULE[ADD_CLAUSES] (ISPECL[`inlist:byte list`;`n:num`;`4`;`0`] SUB_LIST_SPLIT);
+              REJ_SAMPLE_ETA4_BYTES_APPEND]);;
+
 (* ===========================================================================
    WIDE per-byte gather / mask foralls (j<32), proven from the committed
    F0SUB_BYTES(_HI) / F1BND_BYTES(_HI) via EXPAND_CASES_CONV (NOT a big-disjunction
@@ -341,9 +382,12 @@ let _ = (try prove(clean_body_tm,
         ASSUME_TAC rej_store))
      THENL
       [W(fun (asl,w) ->
-         let oc = open_out "/tmp/f0sub_form.txt" in
-         output_string oc (Printf.sprintf "SUB-ITER 1 REJ STORE ASSUMED: present=%b\n"
-           (exists (fun th -> can(find_term(fun u->match u with Const("REJ_SAMPLE_ETA4_BYTES",_)->true|_->false))(concl th) && (match concl th with Comb(Comb(Const("=",_),Comb(Comb(Const("read",_),_),Var("s17",_))),_)->true|_->false)) (map snd asl)));
+         let oc = open_out "/tmp/fold_state.txt" in
+         output_string oc "=== GOAL ===\n"; output_string oc (string_of_term w); output_string oc "\n\n=== ASMS mentioning res/outlen0/REJ_SAMPLE/num_of_wordlist/SUB_LIST ===\n";
+         List.iter (fun (nm,th) ->
+           let c = concl th in
+           if can(find_term(fun u->match u with Const("REJ_SAMPLE_ETA4_BYTES",_)|Const("num_of_wordlist",_)|Const("SUB_LIST",_)->true|Var("outlen0",_)->true|_->false)) c
+           then (output_string oc ("["^nm^"]: "^string_of_term c^"\n\n"))) asl;
          close_out oc; NO_TAC);
        W(fun (asl,w) ->
          let pdef = find (fun th -> is_eq(concl th) && rand(concl th)=`pshuf1:int256` && can(find_term(fun u->match u with Const("word_join",_)->true|_->false))(concl th)) (map snd asl) in
