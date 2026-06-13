@@ -63,6 +63,45 @@ let LACC8 = prove(`!m:byte. LENGTH(ACC_IDX m) <= 8`,
   MP_TAC(ISPECL [`\i. bit i (m:byte)`; `[0;1;2;3;4;5;6;7]:num list`] LENGTH_FILTER) THEN
   REWRITE_TAC[LENGTH] THEN ARITH_TAC);;
 
+(* LEN_RECONCILE: given the maskbit correspondence (the maskbit_tgt form), the accept count
+   LENGTH(ACC_IDX m) equals LENGTH(REJ_SAMPLE_ETA4_BYTES[chunk0 block]) — needed to retype the
+   block-store width (4*LENGTH(ACC_IDX m)) as (4*LENGTH(REJ_SAMPLE block)) for SUBITER_STORE_EXTEND. *)
+let LEN_RECONCILE = prove
+ (`!(m:byte) (chunk0:int128).
+     (!j. j < 8 ==> (bit j m <=>
+        EL j [val(word_subword chunk0 (0,8):byte) MOD 16; val(word_subword chunk0 (0,8):byte) DIV 16;
+              val(word_subword chunk0 (8,8):byte) MOD 16; val(word_subword chunk0 (8,8):byte) DIV 16;
+              val(word_subword chunk0 (16,8):byte) MOD 16; val(word_subword chunk0 (16,8):byte) DIV 16;
+              val(word_subword chunk0 (24,8):byte) MOD 16; val(word_subword chunk0 (24,8):byte) DIV 16] < 9))
+     ==> LENGTH(ACC_IDX m) =
+         LENGTH(REJ_SAMPLE_ETA4_BYTES [word_subword chunk0 (0,8); word_subword chunk0 (8,8);
+                                       word_subword chunk0 (16,8); word_subword chunk0 (24,8)]:int32 list)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`m:byte`;
+    `word(val(word_subword (chunk0:int128) (0,8):byte) MOD 16):byte`;
+    `word(val(word_subword (chunk0:int128) (0,8):byte) DIV 16):byte`;
+    `word(val(word_subword (chunk0:int128) (8,8):byte) MOD 16):byte`;
+    `word(val(word_subword (chunk0:int128) (8,8):byte) DIV 16):byte`;
+    `word(val(word_subword (chunk0:int128) (16,8):byte) MOD 16):byte`;
+    `word(val(word_subword (chunk0:int128) (16,8):byte) DIV 16):byte`;
+    `word(val(word_subword (chunk0:int128) (24,8):byte) MOD 16):byte`;
+    `word(val(word_subword (chunk0:int128) (24,8):byte) DIV 16):byte`] ACC_LENGTH_EQ_FILTER) THEN
+  ANTS_TAC THENL
+   [REPEAT CONJ_TAC THEN
+    W(fun (asl,gw) -> let n = rand(rator(lhand gw)) in
+       MP_TAC(SPEC n (find (fun th -> is_forall(concl th) && can(find_term(fun u->match u with Const("EL",_)->true|_->false))(concl th)) (map snd asl)))) THEN
+    CONV_TAC(ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+    DISCH_THEN SUBST1_TAC THEN
+    W(fun (asl,gw) -> let bt = find_term (fun u -> try fst(dest_const(fst(strip_comb u)))="word_subword" && type_of u=`:byte` with _->false) gw in
+       MP_TAC(REWRITE_RULE[DIMINDEX_8](ISPEC bt VAL_BOUND)) THEN STRIP_TAC THEN
+       SUBGOAL_THEN (mk_eq(mk_comb(`val:byte->num`,mk_comb(`word:num->byte`,mk_binop `MOD` (mk_comb(`val:byte->num`,bt)) `16`)), mk_binop `MOD` (mk_comb(`val:byte->num`,bt)) `16`)) SUBST1_TAC THENL
+        [REWRITE_TAC[VAL_WORD; DIMINDEX_8] THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
+       SUBGOAL_THEN (mk_eq(mk_comb(`val:byte->num`,mk_comb(`word:num->byte`,mk_binop `DIV` (mk_comb(`val:byte->num`,bt)) `16`)), mk_binop `DIV` (mk_comb(`val:byte->num`,bt)) `16`)) SUBST1_TAC THENL
+        [REWRITE_TAC[VAL_WORD; DIMINDEX_8] THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
+       REFL_TAC);
+    DISCH_THEN SUBST1_TAC THEN
+    REWRITE_TAC[LENGTH_FILTER_BYTE_NIBBLES_4_BYTES; LENGTH_REJ_SAMPLE_ETA4_BYTES]]);;
+
 (* ===========================================================================
    WIDE per-byte gather / mask foralls (j<32), proven from the committed
    F0SUB_BYTES(_HI) / F1BND_BYTES(_HI) via EXPAND_CASES_CONV (NOT a big-disjunction
