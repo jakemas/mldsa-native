@@ -451,16 +451,54 @@ let _ = (try prove(clean_body_tm,
         let gthm = EQ_MP (SYM(REWRITE_CONV[WORD_ZX_TRIVIAL] gather_hyp)) bg in
         let specres = MP spec (CONJ mthm gthm) in
         let rej_store = REWRITE_RULE[specres] res_th0 in
-        ASSUME_TAC rej_store))
+        (* ---- SUB-ITER 1 MEMORY FOLD (2026-06-13): fold rej_store (block store at res+4*outlen0)
+           with the prefix store into the clean advanced prefix store for SUB_LIST(0,16i+4).
+           Done HERE (inner W) so rej_store + mthm are OCaml values in scope (mthm is threaded,
+           not assumed, so it can't be re-found). Validated forward inference (/tmp/subiter1_clean.txt).
+           Uses LEN_RECONCILE + SUBITER_BLOCK_BYTES + SUBITER_FOLD_STEP + SUB_LIST_SPLIT. ---- *)
+        let hasC nm th = can (find_term (fun u -> match u with Const(n,_) when n=nm -> true | _ -> false)) (concl th) in
+        let blk = `[word_subword (chunk0:int128) (0,8); word_subword chunk0 (8,8); word_subword chunk0 (16,8); word_subword chunk0 (24,8)]:byte list` in
+        let prefixbytes = `SUB_LIST(0,16*i) (inlist:byte list)` in
+        (* prefix store: read(memory:>bytes(res,4*outlen0)) s17 = nwl(REJ(SUB_LIST(0,16i))).
+           identify by: read-eq at s17, RHS has num_of_wordlist+SUB_LIST, address mentions outlen0 (not ACC_IDX). *)
+        let prefix_store = find (fun th ->
+             (match concl th with Comb(Comb(Const("=",_),Comb(Comb(Const("read",_),_),Var("s17",_))),_) -> true | _ -> false) &&
+             hasC "num_of_wordlist" th && hasC "SUB_LIST" th &&
+             can(find_term(fun u->u=`res:int64`))(lhand(concl th)) &&
+             can(find_term(fun u->u=`outlen0:num`))(lhand(concl th)) &&
+             not(hasC "ACC_IDX" th)) asms in
+        let len_eq = find (fun th -> match concl th with
+             Comb(Comb(Const("=",_),Comb(Const("LENGTH",_),_)),Var("outlen0",_)) -> true | _ -> false) asms in
+        let blk16 = find (fun th -> is_eq(concl th) && hasC "SUB_LIST" th &&
+             (try length(dest_list(rand(concl th))) = 16 with _ -> false)) asms in
+        let leninl = find (fun th -> match concl th with
+             Comb(Comb(Const("=",_),Comb(Const("LENGTH",_),Var("inlist",_))),_) -> true | _ -> false) asms in
+        let i116 = find (fun th -> match concl th with
+             Comb(Comb(Const("<=",_),Comb(Comb(Const("*",_),_),Comb(Comb(Const("+",_),Var("i",_)),_))),_) -> true | _ -> false) asms in
+        let lenle = REWRITE_RULE[GSYM leninl] (MP (ARITH_RULE `16*(i+1) <= 256 ==> 16*i+16 <= 272`) i116) in
+        let lr = MP (ISPECL [m; `chunk0:int128`] LEN_RECONCILE) mthm in
+        let bb = MP (ISPECL [`inlist:byte list`; `i:num`; `chunk0:int128`] SUBITER_BLOCK_BYTES) (CONJ lenle blk16) in
+        let blk_bytes = CONJUNCT1 bb in
+        let rej_store2 = REWRITE_RULE[SYM len_eq] rej_store in
+        let prefix_store2 = REWRITE_RULE[SYM len_eq] prefix_store in
+        let fold = MP (ISPECL [`res:int64`;`s17:x86state`;m;blk;prefixbytes] SUBITER_FOLD_STEP)
+                      (CONJ lr (CONJ prefix_store2 rej_store2)) in
+        let split0 = REWRITE_RULE[ADD_CLAUSES] (ISPECL[`inlist:byte list`;`16*i`;`4`;`0`] SUB_LIST_SPLIT) in
+        let clean = REWRITE_RULE[GSYM blk_bytes; GSYM split0] fold in
+        (let oc = open_out "/tmp/fold_state.txt" in
+         output_string oc ("SUB-ITER 1 FOLD DONE (inner W). clean store =\n"^string_of_term(concl clean)^"\n");
+         close_out oc);
+        ASSUME_TAC clean))
      THENL
-      [W(fun (asl,w) ->
-         let oc = open_out "/tmp/fold_state.txt" in
-         output_string oc "=== GOAL ===\n"; output_string oc (string_of_term w); output_string oc "\n\n=== ASMS mentioning res/outlen0/REJ_SAMPLE/num_of_wordlist/SUB_LIST ===\n";
-         List.iter (fun (nm,th) ->
-           let c = concl th in
-           if can(find_term(fun u->match u with Const("REJ_SAMPLE_ETA4_BYTES",_)|Const("num_of_wordlist",_)|Const("SUB_LIST",_)->true|Var("outlen0",_)->true|_->false)) c
-           then (output_string oc ("["^nm^"]: "^string_of_term c^"\n\n"))) asl;
-         close_out oc; NO_TAC);
+      [(* sub-iter 1 fold already done inside the inner W (clean advanced store now assumed).
+         Marker stop: the full CLEAN_BODY (sub-iters 2-4 + counters + jmp) is still to come. *)
+       W(fun (asl,w) ->
+         (let oc = open_out "/tmp/marker.txt" in
+          output_string oc (Printf.sprintf "CLEAN PREFIX STORE PRESENT (16i+4)=%b\n"
+            (exists (fun (_,th) -> is_eq(concl th) &&
+               can(find_term(fun u->match u with Comb(Comb(Const("+",_),Comb(Comb(Const("*",_),_),Var("i",_))),_)->true|_->false))(concl th) &&
+               can(find_term(fun u->match u with Const("num_of_wordlist",_)->true|_->false))(concl th)) asl));
+          close_out oc); NO_TAC);
        W(fun (asl,w) ->
          let pdef = find (fun th -> is_eq(concl th) && rand(concl th)=`pshuf1:int256` && can(find_term(fun u->match u with Const("word_join",_)->true|_->false))(concl th)) (map snd asl) in
          let teq = find (fun th -> is_eq(concl th) && lhand(concl th)=`tab1:int256` && can(find_term(fun u->match u with Const("TABLE_ENTRY",_)->true|_->false))(concl th)) (map snd asl) in
