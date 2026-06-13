@@ -201,6 +201,78 @@ let F0NIB_CHUNK0 =
                      (usimd16 (\z:int16. word_shl z 4) (usimd16 (\b:byte. word_zx b:int16) chunk0:int256):int256))
             (word 6811299366900952671974763824040465167839410862684739061144563765171360567055:int256)`;;
 
+(* maskbit_tgt / pf_target / MASKBIT_PF_TAC: baked in so the file is self-contained
+   (previously session-only, which broke deterministic reload). maskbit_tgt is the
+   sub-iter-1 VPMOVMSKB-byte <-> nibble-accept correspondence in the EL-list form
+   LEN_RECONCILE consumes; pf_target is the pshufb lane form (= read YMM6 s15) matching
+   SUBITER_STORE_POSTCOND's usimd16/TABLE_ENTRY control; MASKBIT_PF_TAC discharges
+   maskbit_tgt in-context (SUM32 = SUM8 + 256*HIGH split, val mask8 = SUM32 MOD 2^32,
+   MASK_LOW_BIT per-lane, VPSUBB_SIGN_BIT_LT_9). *)
+let maskbit_tgt =
+  `!j. j < 8 ==> (bit j (word (val (mask8:int64) MOD 256):byte) <=>
+       EL j [val(word_subword (chunk0:int128) (0,8):byte) MOD 16;
+         val(word_subword chunk0 (0,8):byte) DIV 16; val(word_subword chunk0 (8,8):byte) MOD 16;
+         val(word_subword chunk0 (8,8):byte) DIV 16; val(word_subword chunk0 (16,8):byte) MOD 16;
+         val(word_subword chunk0 (16,8):byte) DIV 16; val(word_subword chunk0 (24,8):byte) MOD 16;
+         val(word_subword chunk0 (24,8):byte) DIV 16] < 9)`;;
+
+let pf_target =
+  `pshuf1:int256 =
+   word_zx
+   (usimd16
+    (\i:byte. if bit 7 i
+         then word 0:byte
+         else word_subword (word_zx (word_zx (word_subword (f0sub:int256) (0,128):int128):int128):int128)
+              (8 * val (word_subword i (0,4):4 word),8):byte)
+   (word_zx
+   (word_zx (word (num_of_wordlist (TABLE_ENTRY (word (val (mask8:int64) MOD 256):byte))):int64):int128):int128):int128)`;;
+
+let MASKBIT_PF_TAC : tactic =
+  W(fun (asl,w) ->
+    let m8 = find (fun th -> is_eq(concl th) && rand(concl th)=`mask8:int64` &&
+        can(find_term(fun u->match u with Const("bitval",_)->true|_->false))(concl th)) (map snd asl) in
+    let sum32 = rand(rand(lhand(concl m8))) in
+    let summands = striplist (dest_binop `(+):num->num->num`) sum32 in
+    let getbitval s = if is_binop `( * ):num->num->num` s then rand s else s in
+    let bvs = map getbitval summands in
+    let sum8 = end_itlist (fun a b -> mk_binop `(+):num->num->num` a b)
+      (List.map2 (fun wt bv -> if wt=1 then bv else mk_binop `( * ):num->num->num` (mk_small_numeral wt) bv) [1;2;4;8;16;32;64;128] (map (fun i->List.nth bvs i) (0--7))) in
+    let high = end_itlist (fun a b -> mk_binop `(+):num->num->num` a b)
+      (map (fun i -> let wt = 1 lsl (i-8) in if wt=1 then List.nth bvs i else mk_binop `( * ):num->num->num` (mk_small_numeral wt) (List.nth bvs i)) (8--31)) in
+    let splitth = prove(mk_eq(sum32, mk_binop `(+):num->num->num` sum8 (mk_binop `( * ):num->num->num` `256` high)), ARITH_TAC) in
+    let byteeq32 = TRANS (AP_TERM `word:num->byte` splitth) (SPECL [sum8; high] WORD_ADD_256_BYTE) in
+    let beq = mk_eq(`word (val (mask8:int64) MOD 256):byte`, mk_comb(`word:num->byte`, sum8)) in
+    let preds8 = map (fun i -> rand (List.nth bvs i)) (0--7) in
+    let plist = mk_abs(`k:num`, mk_comb(mk_comb(`EL:num->(bool)list->bool`,`k:num`),
+       (end_itlist (fun a b -> mk_binop `CONS:bool->(bool)list->(bool)list` a b) (preds8 @ [`[]:(bool)list`])))) in
+    SUBGOAL_THEN beq ASSUME_TAC THENL
+     [SUBGOAL_THEN (mk_eq(`val (mask8:int64)`, mk_binop `MOD` sum32 `2 EXP 32`)) SUBST1_TAC THENL
+       [SUBST1_TAC(SYM m8) THEN REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD; DIMINDEX_64; DIMINDEX_32] THEN
+        MATCH_MP_TAC MOD_LT THEN MP_TAC(SPECL [sum32; `2 EXP 32`] MOD_LT_EQ) THEN REWRITE_TAC[EXP_EQ_0; ARITH_EQ] THEN ARITH_TAC; ALL_TAC] THEN
+      SUBGOAL_THEN (mk_eq(mk_binop `MOD` (mk_binop `MOD` sum32 `2 EXP 32`) `256`, mk_binop `MOD` sum32 `256`)) SUBST1_TAC THENL
+       [REWRITE_TAC[ARITH_RULE `256 = 2 EXP 8`] THEN REWRITE_TAC[MOD_MOD_EXP_MIN] THEN CONV_TAC(ONCE_DEPTH_CONV NUM_REDUCE_CONV); ALL_TAC] THEN
+      REWRITE_TAC[WORD_BYTE_MOD] THEN ACCEPT_TAC byteeq32;
+      ALL_TAC] THEN
+    REPEAT STRIP_TAC THEN
+    FIRST_ASSUM(fun beqth -> if is_eq(concl beqth) && lhand(concl beqth)=`word (val (mask8:int64) MOD 256):byte` then REWRITE_TAC[beqth] else NO_TAC) THEN
+    MP_TAC(SPECL [plist; `j:num`] MASK_LOW_BIT) THEN
+    CONV_TAC(DEPTH_CONV BETA_CONV) THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+    ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN
+    FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+      (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+    CONV_TAC NUM_REDUCE_CONV THEN
+    REPEAT(CHANGED_TAC(SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+             DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+      CONV_TAC NUM_REDUCE_CONV)) THEN
+    REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+    W(fun (asl2,w2) ->
+       let bt = find_term (fun u -> try fst(dest_const(fst(strip_comb u)))="word_subword" &&
+         type_of u = `:byte` && can(find_term(fun v->v=`chunk0:int128`)) u with _->false) w2 in
+       MP_TAC(REWRITE_RULE[DIMINDEX_8](ISPEC bt VAL_BOUND)) THEN STRIP_TAC THEN
+       ASM_SIMP_TAC[VPSUBB_SIGN_BIT_LT_9; VAL_WORD_EQ; DIMINDEX_8;
+         ARITH_RULE `n < 256 ==> n MOD 16 < 256`; ARITH_RULE `n < 256 ==> n DIV 16 < 256`;
+         ARITH_RULE `n < 256 ==> n MOD 16 < 16`; ARITH_RULE `n < 256 ==> n DIV 16 < 16`]));;
+
 let clean_body_tm = `
    !res buf table (inlist:byte list) pc N (i:num) stackpointer.
         LENGTH inlist = 272 /\
