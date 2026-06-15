@@ -491,21 +491,24 @@ let _ = (try prove(clean_body_tm,
         ASSUME_TAC clean))
      THENL
       [(* ---- SUB-ITER 1 fold done (clean advanced prefix store for SUB_LIST(0,16i+4) assumed).
-         Marker stop. NEXT (counter+mid-guard, recipe in clean_body_probe.ml stages 1-6): step
-         popcnt/add/shr/add (s18-21), reduce popcount(vpmovmskb low byte) to 8-bitval sum =
-         LENGTH(REJ_NIBBLES block0), outlen0+block<=248 (SUBITER_OUTLEN_BOUND_1), RAX=word(outlen0+block)
-         (RAX_NEST_REDUCE), cmp eax,248/ja via JA_NOT_TAKEN_LE -> RIP=pc+161.
-         BLOCKER (2026-06-13): X86_STEPS EXEC (18--18) [the popcnt r9d,r10d] fails "mk_comb: types do
-         not agree" in this build context though the same step works in clean_body_probe.ml. R10 s17
-         = word_zx(word_zx(word(val mask8 MOD 256))) is clean/stable; cause likely a leftover
-         typing-ambiguous assumption from the nested store-value SUBGOAL_THEN. To resolve next:
-         reproduce the post-s17 context in the probe vs here and diff the read/MAYCHANGE assumptions. *)
+         Marker stop. The counter+mid-guard block (popcnt/add/shr/add s18-21 + cmp/ja s22 ->
+         RIP=pc+161, recipe in clean_body_probe.ml stages 1-6) must run BEFORE this store-value
+         SUBGOAL_THEN — see ROOT-CAUSE below — so it is NOT placed here. Next step = reorder. *)
+       (* ROOT-CAUSE (2026-06-15, main file reloaded + diagnosed): stepping the popcnt (X86_STEPS
+          EXEC 18--) AFTER the store-value SUBGOAL_THEN fails "mk_comb: types do not agree".
+          R10 s17 = word_zx(word_zx(word(val mask8 MOD 256))) is itself well-typed (byte->i32->i64,
+          identical to the probe), and dropping the word_join/usimd16/YMM-read assumptions did NOT
+          fix it — so a state read the simulator still needs was left in a broken shape by the
+          store-value RULE_ASSUM rewrites. The probe steps counters 18-21 FIRST on the RAW s17
+          simulator state, THEN does store-value. FIX (next session): move the counter+mid-guard
+          block to right after `X86_STEPS_TAC EXEC (17--17); PURGE_STALE_STATES_TAC ["s16"]`
+          (line ~411), BEFORE the `SUBGOAL_THEN !j...gather` block. Counters touch only
+          R9/RAX/R8/RCX/flags; the store-value proof reads s17 memory/YMM facts which survive the
+          counter steps, so the reorder is sound. The full counter block is preserved verbatim in
+          git history (commit prior to this one) and in clean_body_probe.ml stages 1-6. *)
        W(fun (asl,w) ->
          (let oc = open_out "/tmp/marker.txt" in
-          output_string oc (Printf.sprintf "SUB-ITER 1 FOLD WIRED. clean store(16i+4) present=%b\n"
-            (exists (fun (_,th) -> is_eq(concl th) &&
-               can(find_term(fun u->match u with Const("num_of_wordlist",_)->true|_->false))(concl th) &&
-               can(find_term(fun u->match u with Comb(Comb(Const("+",_),Comb(Comb(Const("*",_),_),Var("i",_))),_)->true|_->false))(concl th)) asl));
+          output_string oc "SUB-ITER 1 FOLD WIRED (counter block pending reorder).\n";
           close_out oc); NO_TAC);
        W(fun (asl,w) ->
          let pdef = find (fun th -> is_eq(concl th) && rand(concl th)=`pshuf1:int256` && can(find_term(fun u->match u with Const("word_join",_)->true|_->false))(concl th)) (map snd asl) in
