@@ -410,6 +410,53 @@ let _ = (try prove(clean_body_tm,
   PURGE_STALE_STATES_TAC ["s15"] THEN
   X86_STEPS_TAC EXEC (17--17) THEN
   PURGE_STALE_STATES_TAC ["s16"] THEN
+  (* ============ COUNTERS + MID-GUARD on the RAW s17 state, BEFORE the store-value block
+     (probe order; the store-value RULE_ASSUM rewrites otherwise corrupt the simulator read
+     and break the popcnt step). Do NOT purge s17 — the store-value block below needs s17's
+     YMM0/memory facts. Steps 18-21 (popcnt/add/shr/add), then stages reduce RAX to
+     word(outlen0+block0), then cmp/ja s22 -> RIP=pc+161. ============ *)
+  X86_STEPS_TAC EXEC (18--21) THEN
+  MP_TAC(ISPECL[`inlist:byte list`;`i:num`;`chunk0:int128`] SUBITER_BLOCK_BYTES) THEN
+  ANTS_TAC THENL
+   [ASM_REWRITE_TAC[] THEN UNDISCH_TAC `LENGTH(inlist:byte list) = 272` THEN
+    UNDISCH_TAC `16 * i <= 256` THEN ARITH_TAC; STRIP_TAC] THEN
+  W(fun (asl,w) ->
+     let m8def = find (fun th -> match concl th with Comb(Comb(Const("=",_),_),Var("mask8",_)) -> true | _ -> false) (map snd asl) in
+     RULE_ASSUM_TAC(REWRITE_RULE[GSYM m8def])) THEN
+  W(fun (asl,w) ->
+     let r9 = find (fun (_,th) -> match concl th with
+         Comb(Comb(Const("=",_),Comb(Comb(Const("read",_),Const("R9",_)),Var("s21",_))),_) -> true | _ -> false) asl in
+     let goal_pc = find_term (fun t -> match t with Comb(Const("word_popcount",_),_) -> true | _ -> false) (concl(snd r9)) in
+     let low8 = `bitval(bit 7 (word_subword (f1bnd:int256) (0,8):byte)) + bitval(bit 7 (word_subword f1bnd (8,8):byte)) +
+              bitval(bit 7 (word_subword f1bnd (16,8):byte)) + bitval(bit 7 (word_subword f1bnd (24,8):byte)) +
+              bitval(bit 7 (word_subword f1bnd (32,8):byte)) + bitval(bit 7 (word_subword f1bnd (40,8):byte)) +
+              bitval(bit 7 (word_subword f1bnd (48,8):byte)) + bitval(bit 7 (word_subword f1bnd (56,8):byte))` in
+     let mr = CONV_RULE(DEPTH_CONV BETA_CONV THENC NUM_REDUCE_CONV)
+                (SPEC `\k. bit 7 (word_subword (f1bnd:int256) (8*k,8):byte)` MOD_RED) in
+     SUBGOAL_THEN (mk_eq(goal_pc, low8)) ASSUME_TAC THENL
+      [REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD; DIMINDEX_8; DIMINDEX_32; DIMINDEX_64] THEN
+       REWRITE_TAC[ARITH_RULE `256 = 2 EXP 8`; MOD_MOD_EXP_MIN] THEN
+       CONV_TAC(ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN
+       REWRITE_TAC[ARITH_RULE `2 EXP 8 = 256`; mr] THEN
+       MAP_EVERY (fun b -> BOOL_CASES_TAC b)
+         [`bit 7 (word_subword (f1bnd:int256) (0,8):byte)`;`bit 7 (word_subword (f1bnd:int256) (8,8):byte)`;
+          `bit 7 (word_subword (f1bnd:int256) (16,8):byte)`;`bit 7 (word_subword (f1bnd:int256) (24,8):byte)`;
+          `bit 7 (word_subword (f1bnd:int256) (32,8):byte)`;`bit 7 (word_subword (f1bnd:int256) (40,8):byte)`;
+          `bit 7 (word_subword (f1bnd:int256) (48,8):byte)`;`bit 7 (word_subword (f1bnd:int256) (56,8):byte)`] THEN
+       REWRITE_TAC[BITVAL_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_REDUCE_CONV;
+       ALL_TAC] THEN
+     RULE_ASSUM_TAC(REWRITE_RULE[ASSUME (mk_eq(goal_pc, low8))])) THEN
+  (* COUNTER STAGES 3-6 (bitsum=LENGTH, outlen+block<=248, RAX reduce, ja->pc+161) are PENDING:
+     stage 3 needs the f1bnd maskbit forall `!k. k<8 ==> (bit 7(word_subword f1bnd (8k,8)) <=>
+     <chunk0 nibble k> < 9)` which the probe had in context but this build never derived (it
+     uses maskbit_tgt keyed on mask8, threaded as a value, not an f1bnd-keyed assumption).
+     NEXT: derive it inline via MASK_WIDE (applied to fn, needs fn-nibble<16 bound + f1bnd=simd2
+     fold) or per-lane VPSUBB_SIGN_BIT_LT_9 on the F1BND byte facts, then run stages 3-6 verbatim.
+     Reorder CONFIRMED: counters 18-21 + popcount->low8 (stages a-d) now PASS on raw s17 state. *)
+  W(fun (asl,w) ->
+     (let oc=open_out "/tmp/marker.txt" in
+      output_string oc "REORDER OK: counters 18-21 + popcount->low8 stages a-d PASS on raw s17.\n";
+      close_out oc); NO_TAC) THEN
   (* ---- GATHER hyp (SUBITER_STORE_SPEC, sub-iter 1): g = word_subword f0sub (0,128),
      per lane j<8: word_subword (word_subword f0sub (0,128)) (8j,8) = word_sub(word 4)(word(EL j nibbles)).
      Direct JOIN extraction on the chunk0-direct f0sub. ---- *)
