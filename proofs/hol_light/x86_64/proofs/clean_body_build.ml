@@ -490,14 +490,22 @@ let _ = (try prove(clean_body_tm,
          close_out oc);
         ASSUME_TAC clean))
      THENL
-      [(* sub-iter 1 fold already done inside the inner W (clean advanced store now assumed).
-         Marker stop: the full CLEAN_BODY (sub-iters 2-4 + counters + jmp) is still to come. *)
+      [(* ---- SUB-ITER 1 fold done (clean advanced prefix store for SUB_LIST(0,16i+4) assumed).
+         Marker stop. NEXT (counter+mid-guard, recipe in clean_body_probe.ml stages 1-6): step
+         popcnt/add/shr/add (s18-21), reduce popcount(vpmovmskb low byte) to 8-bitval sum =
+         LENGTH(REJ_NIBBLES block0), outlen0+block<=248 (SUBITER_OUTLEN_BOUND_1), RAX=word(outlen0+block)
+         (RAX_NEST_REDUCE), cmp eax,248/ja via JA_NOT_TAKEN_LE -> RIP=pc+161.
+         BLOCKER (2026-06-13): X86_STEPS EXEC (18--18) [the popcnt r9d,r10d] fails "mk_comb: types do
+         not agree" in this build context though the same step works in clean_body_probe.ml. R10 s17
+         = word_zx(word_zx(word(val mask8 MOD 256))) is clean/stable; cause likely a leftover
+         typing-ambiguous assumption from the nested store-value SUBGOAL_THEN. To resolve next:
+         reproduce the post-s17 context in the probe vs here and diff the read/MAYCHANGE assumptions. *)
        W(fun (asl,w) ->
          (let oc = open_out "/tmp/marker.txt" in
-          output_string oc (Printf.sprintf "CLEAN PREFIX STORE PRESENT (16i+4)=%b\n"
+          output_string oc (Printf.sprintf "SUB-ITER 1 FOLD WIRED. clean store(16i+4) present=%b\n"
             (exists (fun (_,th) -> is_eq(concl th) &&
-               can(find_term(fun u->match u with Comb(Comb(Const("+",_),Comb(Comb(Const("*",_),_),Var("i",_))),_)->true|_->false))(concl th) &&
-               can(find_term(fun u->match u with Const("num_of_wordlist",_)->true|_->false))(concl th)) asl));
+               can(find_term(fun u->match u with Const("num_of_wordlist",_)->true|_->false))(concl th) &&
+               can(find_term(fun u->match u with Comb(Comb(Const("+",_),Comb(Comb(Const("*",_),_),Var("i",_))),_)->true|_->false))(concl th)) asl));
           close_out oc); NO_TAC);
        W(fun (asl,w) ->
          let pdef = find (fun th -> is_eq(concl th) && rand(concl th)=`pshuf1:int256` && can(find_term(fun u->match u with Const("word_join",_)->true|_->false))(concl th)) (map snd asl) in
