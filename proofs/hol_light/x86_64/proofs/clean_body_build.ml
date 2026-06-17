@@ -380,6 +380,51 @@ let _ = (try prove(clean_body_tm,
   RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read YMM0 s9 = fn:int256`;
      ASSUME `read YMM3 s9 = word 1816346497840254045859937019744124044757176230049263749638550337379029484548:int256`]) THEN
   ABBREV_TAC `f0sub:int256 = read YMM0 s10` THEN
+  (* MASKBIT forall derived NOW (f1bnd word_join def still present): bit 7(f1bnd lane k) <=>
+     EL k[chunk0 nibbles]<9. ASSUME it — survives the DROP below + downstream purges. Used by
+     counter stage 3b. (Probe proves this SUBGOAL before its DROP, lines 216-237.) *)
+  W(fun (asl,w) ->
+      let f1d = find (fun th -> is_eq(concl th) && lhand(concl th) = `f1bnd:int256`) (map snd asl) in
+      (* prove `f1bnd = wj ==> (!k...)` as a CLOSED implication (f1d discharged as antecedent,
+         so the result has NO extra hyps), then MP with f1d. The DISCH'd eq is used to rewrite. *)
+      let maskbit_imp = prove
+       (mk_imp(concl f1d,
+        `!k. k < 8 ==> (bit 7 (word_subword (f1bnd:int256) (8*k,8):byte) <=>
+            EL k ([val(word_subword (chunk0:int128) (0,8):byte) MOD 16; val(word_subword chunk0 (0,8):byte) DIV 16;
+                  val(word_subword chunk0 (8,8):byte) MOD 16; val(word_subword chunk0 (8,8):byte) DIV 16;
+                  val(word_subword chunk0 (16,8):byte) MOD 16; val(word_subword chunk0 (16,8):byte) DIV 16;
+                  val(word_subword chunk0 (24,8):byte) MOD 16; val(word_subword chunk0 (24,8):byte) DIV 16]:num list) < 9)`),
+        DISCH_THEN(fun f1eq -> REPEAT STRIP_TAC THEN
+          FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+            (ARITH_RULE `k<8 ==> k=0\/k=1\/k=2\/k=3\/k=4\/k=5\/k=6\/k=7`)) THEN
+          CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+          REWRITE_TAC[f1eq] THEN
+          REPEAT(CHANGED_TAC(SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+                   DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+            CONV_TAC NUM_REDUCE_CONV)) THEN
+          REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN
+          W(fun (asl2,w2) ->
+             let nibarg = find_term (fun u -> match u with
+                Comb(Comb(Const("MOD",_),_),_) | Comb(Comb(Const("DIV",_),_),_) -> true | _ -> false) w2 in
+             let bt = find_term (fun u -> try fst(dest_const(fst(strip_comb u)))="word_subword" &&
+               type_of u = `:byte` && can(find_term(fun v->v=`chunk0:int128`)) u with _->false) w2 in
+             let valeq = prove(mk_eq(mk_comb(`val:byte->num`, mk_comb(`word:num->byte`, nibarg)), nibarg),
+                REWRITE_TAC[VAL_WORD; DIMINDEX_8] THEN MATCH_MP_TAC MOD_LT THEN
+                MP_TAC(REWRITE_RULE[DIMINDEX_8](ISPEC bt VAL_BOUND)) THEN ARITH_TAC) in
+             let nlt16 = prove(mk_binop `(<):num->num->bool` nibarg `16`,
+                MP_TAC(REWRITE_RULE[DIMINDEX_8](ISPEC bt VAL_BOUND)) THEN ARITH_TAC) in
+             let vp = REWRITE_RULE[valeq] (SPEC (mk_comb(`word:num->byte`, nibarg)) VPSUBB_SIGN_BIT_LT_9) in
+             ACCEPT_TAC (MP vp nlt16)))) in
+      ASSUME_TAC (MP maskbit_imp f1d)) THEN
+  (fun g -> (let oc=open_out "/tmp/cs_mb.txt" in output_string oc "early maskbit assumed"; close_out oc); ALL_TAC g) THEN
+  (* DROP f0sub/f1bnd word_join defs BEFORE vpmovmskb (s11) — mirrors the probe (clean_body_probe.ml
+     lines 243-245). This keeps R8/R9's vpmovmskb+popcount over the OPAQUE `f1bnd` var (via the
+     `read YMM1 s10 = f1bnd` fold) instead of the expanded word_join, so stage d's popeq / low8 /
+     BOOL_CASES (over `word_subword f1bnd (8k,8)`) match the popcount term. Without this, R9 s21 =
+     popcount(...word_join expanded...) and stage d leaves unsolved goals. *)
+  REPEAT(FIRST_X_ASSUM(fun th ->
+     if is_eq(concl th) && (lhand(concl th) = `f0sub:int256` || lhand(concl th) = `f1bnd:int256`)
+     then ALL_TAC else failwith "keep")) THEN
   (* ---- STEP s11-s17 FIRST (vpmovmskb, vextracti128, movzbl R10 capture, vmovq, vpshufb,
      vpmovsxbd, vmovdqu store), keeping f0sub/f1bnd defs. The gather/mask SUBGOALs are proven
      AFTER stepping: their `EL j [...]`-shaped assumptions confuse X86_VSTEPS' simulator
@@ -410,12 +455,14 @@ let _ = (try prove(clean_body_tm,
   PURGE_STALE_STATES_TAC ["s15"] THEN
   X86_STEPS_TAC EXEC (17--17) THEN
   PURGE_STALE_STATES_TAC ["s16"] THEN
+  (fun g -> (let oc=open_out "/tmp/cs_s17.txt" in output_string oc "reached s17 (store done)"; close_out oc); ALL_TAC g) THEN
   (* ============ COUNTERS + MID-GUARD on the RAW s17 state, BEFORE the store-value block
      (probe order; the store-value RULE_ASSUM rewrites otherwise corrupt the simulator read
      and break the popcnt step). Do NOT purge s17 — the store-value block below needs s17's
      YMM0/memory facts. Steps 18-21 (popcnt/add/shr/add), then stages reduce RAX to
      word(outlen0+block0), then cmp/ja s22 -> RIP=pc+161. ============ *)
   X86_STEPS_TAC EXEC (18--21) THEN
+  (fun g -> (let oc=open_out "/tmp/cs_c1821.txt" in output_string oc "counters 18-21 done"; close_out oc); ALL_TAC g) THEN
   MP_TAC(ISPECL[`inlist:byte list`;`i:num`;`chunk0:int128`] SUBITER_BLOCK_BYTES) THEN
   ANTS_TAC THENL
    [ASM_REWRITE_TAC[] THEN UNDISCH_TAC `LENGTH(inlist:byte list) = 272` THEN
@@ -423,6 +470,8 @@ let _ = (try prove(clean_body_tm,
   W(fun (asl,w) ->
      let m8def = find (fun th -> match concl th with Comb(Comb(Const("=",_),_),Var("mask8",_)) -> true | _ -> false) (map snd asl) in
      RULE_ASSUM_TAC(REWRITE_RULE[GSYM m8def])) THEN
+  (* With the word_join DROP above, R9/RAX popcount stays over the OPAQUE f1bnd, so no fold-back
+     is needed — popeq (low8 over word_subword f1bnd (8k,8)) matches directly. *)
   W(fun (asl,w) ->
      let r9 = find (fun (_,th) -> match concl th with
          Comb(Comb(Const("=",_),Comb(Comb(Const("read",_),Const("R9",_)),Var("s21",_))),_) -> true | _ -> false) asl in
@@ -433,8 +482,10 @@ let _ = (try prove(clean_body_tm,
               bitval(bit 7 (word_subword f1bnd (48,8):byte)) + bitval(bit 7 (word_subword f1bnd (56,8):byte))` in
      let mr = CONV_RULE(DEPTH_CONV BETA_CONV THENC NUM_REDUCE_CONV)
                 (SPEC `\k. bit 7 (word_subword (f1bnd:int256) (8*k,8):byte)` MOD_RED) in
-     SUBGOAL_THEN (mk_eq(goal_pc, low8)) ASSUME_TAC THENL
-      [REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD; DIMINDEX_8; DIMINDEX_32; DIMINDEX_64] THEN
+     (* prove popcount=bitsum8 as a STANDALONE thm (closed eq, no goal context) then rewrite the
+        assumptions with it — pure forward inference, immune to SUBGOAL_THEN/THENL goal-count coupling. *)
+     let popeq = prove(mk_eq(goal_pc, low8),
+       REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD; DIMINDEX_8; DIMINDEX_32; DIMINDEX_64] THEN
        REWRITE_TAC[ARITH_RULE `256 = 2 EXP 8`; MOD_MOD_EXP_MIN] THEN
        CONV_TAC(ONCE_DEPTH_CONV NUM_REDUCE_CONV) THEN
        REWRITE_TAC[ARITH_RULE `2 EXP 8 = 256`; mr] THEN
@@ -443,20 +494,97 @@ let _ = (try prove(clean_body_tm,
           `bit 7 (word_subword (f1bnd:int256) (16,8):byte)`;`bit 7 (word_subword (f1bnd:int256) (24,8):byte)`;
           `bit 7 (word_subword (f1bnd:int256) (32,8):byte)`;`bit 7 (word_subword (f1bnd:int256) (40,8):byte)`;
           `bit 7 (word_subword (f1bnd:int256) (48,8):byte)`;`bit 7 (word_subword (f1bnd:int256) (56,8):byte)`] THEN
-       REWRITE_TAC[BITVAL_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_REDUCE_CONV;
+       REWRITE_TAC[BITVAL_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_REDUCE_CONV) in
+     RULE_ASSUM_TAC(REWRITE_RULE[popeq])) THEN
+  (* (3b) 8-bitval sum (R9/RAX popcount low8) = LENGTH(REJ_NIBBLES block0), using the maskbit
+     forall ASSUMED earlier (before the word_join DROP). bit 7(f1bnd lane k) <=> EL k[nibbles]<9;
+     rewrite each bitval, then BITVAL_SUM_8_EQ_LENGTH_FILTER + LENGTH_FILTER_BYTE_NIBBLES_4_BYTES. *)
+  W(fun (asl,w) ->
+     let maskbit = snd(find (fun (_,th) -> let c=concl th in is_forall c &&
+         can(find_term(fun u->u=`f1bnd:int256`))c && can(find_term(fun u->match u with Comb(Const("bit",_),_)->true|_->false))c) asl) in
+     let mbits = map (fun k -> let th=SPEC(mk_small_numeral k) maskbit in
+          CONV_RULE (NUM_REDUCE_CONV THENC ONCE_DEPTH_CONV EL_CONV) (MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th)))))) [0;1;2;3;4;5;6;7] in
+     let blk0 = find (fun (_,th) -> match concl th with
+         Comb(Comb(Const("=",_),l),_) -> (try let h,args=strip_comb l in fst(dest_const h)="SUB_LIST" &&
+            (match args with [Comb(Comb(_,off),wid);_] -> wid=`4` && (match off with Comb(Comb(Const("*",_),_),_)->true|_->false) | _->false) with _->false) | _ -> false) asl in
+     let bitsum8 = `bitval(bit 7 (word_subword (f1bnd:int256) (0,8):byte)) + bitval(bit 7 (word_subword f1bnd (8,8):byte)) +
+              bitval(bit 7 (word_subword f1bnd (16,8):byte)) + bitval(bit 7 (word_subword f1bnd (24,8):byte)) +
+              bitval(bit 7 (word_subword f1bnd (32,8):byte)) + bitval(bit 7 (word_subword f1bnd (40,8):byte)) +
+              bitval(bit 7 (word_subword f1bnd (48,8):byte)) + bitval(bit 7 (word_subword f1bnd (56,8):byte))` in
+     SUBGOAL_THEN (mk_eq(bitsum8, `LENGTH(REJ_NIBBLES_ETA4 (SUB_LIST(16*i,4) inlist):int16 list)`)) ASSUME_TAC THENL
+      [REWRITE_TAC mbits THEN REWRITE_TAC[snd blk0] THEN
+       REWRITE_TAC[BITVAL_SUM_8_EQ_LENGTH_FILTER; LENGTH_FILTER_BYTE_NIBBLES_4_BYTES];
        ALL_TAC] THEN
-     RULE_ASSUM_TAC(REWRITE_RULE[ASSUME (mk_eq(goal_pc, low8))])) THEN
-  (* COUNTER STAGES 3-6 (bitsum=LENGTH, outlen+block<=248, RAX reduce, ja->pc+161) are PENDING:
-     stage 3 needs the f1bnd maskbit forall `!k. k<8 ==> (bit 7(word_subword f1bnd (8k,8)) <=>
-     <chunk0 nibble k> < 9)` which the probe had in context but this build never derived (it
-     uses maskbit_tgt keyed on mask8, threaded as a value, not an f1bnd-keyed assumption).
-     NEXT: derive it inline via MASK_WIDE (applied to fn, needs fn-nibble<16 bound + f1bnd=simd2
-     fold) or per-lane VPSUBB_SIGN_BIT_LT_9 on the F1BND byte facts, then run stages 3-6 verbatim.
-     Reorder CONFIRMED: counters 18-21 + popcount->low8 (stages a-d) now PASS on raw s17 state. *)
+     RULE_ASSUM_TAC(REWRITE_RULE[ASSUME (mk_eq(bitsum8, `LENGTH(REJ_NIBBLES_ETA4 (SUB_LIST(16*i,4) inlist):int16 list)`))])) THEN
+  (fun g -> (let oc=open_out "/tmp/cs_3b.txt" in output_string oc "3b bitsum=LENGTH done"; close_out oc); ALL_TAC g) THEN
+  (* DROP the maskbit forall (EL-list / bit7 over f1bnd) now that 3b has consumed it — its
+     presence in context can trip the cmp-step flag rewriting (mk_comb). Also drop the f1bnd
+     bitval-sum / popcount intermediate eqs no longer needed. *)
+  REPEAT(FIRST_X_ASSUM(fun th ->
+     let c = concl th in
+     if is_forall c && can(find_term(fun u->u=`f1bnd:int256`))c
+        && can(find_term(fun u->match u with Comb(Const("bit",_),_)->true|_->false))c
+     then ALL_TAC else failwith "keep")) THEN
+  (* (4) outlen0 + block <= 248. Pure forward inference (no fragile nested THENL): prove the
+     two antecedents of SUBITER_OUTLEN_BOUND_1, MP to get its conclusion
+     (LENGTH(REJ_SAMPLE(SUB_LIST(0,16i))) + LENGTH(REJ_NIBBLES block0) <= 248), then fold
+     LENGTH(REJ_SAMPLE..) -> outlen0 via the len_eq, and ASSUME. *)
+  W(fun (asl,w) ->
+     let leninl = find (fun (_,th) -> match concl th with
+        Comb(Comb(Const("=",_),Comb(Const("LENGTH",_),Var("inlist",_))),_) -> true | _ -> false) asl in
+     let i116 = find (fun (_,th) -> match concl th with
+        Comb(Comb(Const("<=",_),Comb(Comb(Const("*",_),_),Comb(Comb(Const("+",_),Var("i",_)),_))),_) -> true | _ -> false) asl in
+     let nible = find (fun (_,th) -> match concl th with
+        Comb(Comb(Const("<=",_),Comb(Const("LENGTH",_),Comb(Const("REJ_NIBBLES_ETA4",_),_))),_) -> true | _ -> false) asl in
+     let len_eq = find (fun (_,th) -> match concl th with
+        Comb(Comb(Const("=",_),Comb(Const("LENGTH",_),_)),Var("outlen0",_)) -> true | _ -> false) asl in
+     (* a1 = 16*(i+1)<=LENGTH inlist, built by MP from context i116 (16*(i+1)<=256) + leninl
+        (LENGTH inlist=272); carrying their hyps is fine (same context). *)
+     let a1 = MP (MP (ARITH_RULE `16*(i+1)<=256 ==> (LENGTH(inlist:byte list)=272 ==> 16*(i+1)<=LENGTH inlist)`)
+                     (snd i116)) (snd leninl) in
+     let bnd0 = MP (ISPECL[`inlist:byte list`;`i:num`] SUBITER_OUTLEN_BOUND_1) (CONJ a1 (snd nible)) in
+     ASSUME_TAC(REWRITE_RULE[snd len_eq] bnd0)) THEN
+  (fun g -> (let oc=open_out "/tmp/cs_4.txt" in output_string oc "4 outlen+block<=248 done"; close_out oc); ALL_TAC g) THEN
+  (* (5) RAX = word(outlen0 + block) via RAX_NEST_REDUCE *)
+  W(fun (asl,w) ->
+     let bnd = find (fun (_,th) -> match concl th with
+         Comb(Comb(Const("<=",_),Comb(Comb(Const("+",_),Var("outlen0",_)),_)),_) -> true | _ -> false) asl in
+     let lt32 = MATCH_MP (ARITH_RULE `a + b <= 248 ==> a + b < 2 EXP 32`) (snd bnd) in
+     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP RAX_NEST_REDUCE lt32])) THEN
+  (fun g -> (let oc=open_out "/tmp/cs_5.txt" in output_string oc "5 RAX reduce done"; close_out oc); ALL_TAC g) THEN
+  (* (6) cmp eax,248 (s22, pc+156) + ja (s23, pc+161): step BOTH together (prologue idiom,
+     lines ~335-343), with JA_NOT_TAKEN_LE pre-MP'd as a hyp; ja not taken (RAX=outlen0+block<=248)
+     -> fall through to RIP=pc+167 (sub-iter 2 vpsrldq). *)
+  (* HYP-CLEANING PASS (root-cause fix): stages 3b/4/5 used RULE_ASSUM_TAC(REWRITE_RULE[ASSUME ..])
+     / MATCH_MP, which attach the ASSUME'd / antecedent terms as STICKY HYPS on the rewritten
+     assumptions (notably the RAX read accumulated 7: the stale word_zx popcount RAX read,
+     word_zx(..)=mask8, the bitsum=LENGTH eq, outlen0+block<=248 and its sub-hyps). Those
+     hyp-laden theorems break X86_STEPS_TAC's term assembly at the cmp step (mk_comb), even though
+     the conclusions are identical to the standalone-proven tcmp4 (which steps fine). Discharge
+     every assumption's hyps against the clean assumption list via PROVE_HYP, iterated to a
+     fixpoint — the stale word_zx RAX read is itself the pre-rewrite RAX assumption, still present
+     in asl, hence dischargeable. *)
+  RULE_ASSUM_TAC(fun th -> ASSUME(concl th)) THEN
+  (* DIAGNOSTIC: clean hyps AND drop to the 3 essential s21 assumptions, to determine whether the
+     mk_comb is intrinsic to stepping from the s21 simulator state or from an assumption term. *)
+  REPEAT(FIRST_X_ASSUM(fun th ->
+     let c = concl th in
+     let keep =
+       (can(find_term(fun u->match u with Const("bytes_loaded",_)->true|_->false)) c) ||
+       ((is_eq c) &&
+        (can(find_term(fun u->match u with Var("s21",_)->true|_->false)) c) &&
+        (can(find_term(fun u->match u with Const("RIP",_)|Const("RAX",_)->true|_->false))
+             (try lhand c with _-> c))) in
+     if keep then failwith "keep" else ALL_TAC)) THEN
+  W(fun (asl,w) -> (let oc=open_out "/tmp/cs_clean.txt" in
+       output_string oc ("after clean+purge: "^string_of_int(List.length asl)^" asms, max hyps = "^
+         string_of_int(itlist (fun (_,th) m -> max m (length(hyp th))) asl 0)^"\n");
+       close_out oc); ALL_TAC) THEN
+  X86_STEPS_TAC EXEC (22--22) THEN
   W(fun (asl,w) ->
      (let oc=open_out "/tmp/marker.txt" in
-      output_string oc "REORDER OK: counters 18-21 + popcount->low8 stages a-d PASS on raw s17.\n";
-      close_out oc); NO_TAC) THEN
+      output_string oc (Printf.sprintf "STAGE6: step 22 (cmp) done. RIP=pc+161 present=%b\n"
+        (exists (fun (_,th) -> can(find_term(fun u->u=`pc + 161`))(concl th)) asl)); close_out oc); NO_TAC) THEN
   (* ---- GATHER hyp (SUBITER_STORE_SPEC, sub-iter 1): g = word_subword f0sub (0,128),
      per lane j<8: word_subword (word_subword f0sub (0,128)) (8j,8) = word_sub(word 4)(word(EL j nibbles)).
      Direct JOIN extraction on the chunk0-direct f0sub. ---- *)
