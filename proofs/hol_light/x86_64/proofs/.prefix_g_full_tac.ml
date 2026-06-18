@@ -108,6 +108,46 @@ let PREFIX_G_FULL_TAC : tactic =
             CONV_TAC NUM_REDUCE_CONV)) THEN
           REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REFL_TAC)) in
       ASSUME_TAC (MP bg2_imp f0d)) THEN
+  (* bg3: sub-iter-3 gather forall over the HIGH 128 lane g3 (lanes 16-23 / chunk0 nibbles 64,72,80,88).
+     No shift (vextracti128 ,1 then vpshufb). Same JOIN-extract proof as bg1 (no SUBWORD_USHR). *)
+  W(fun (asl,w) ->
+      let f0d = find (fun th -> is_eq(concl th) && lhand(concl th) = `f0sub:int256`) (map snd asl) in
+      let g3 = `word_zx (word_zx (word_subword (f0sub:int256) (128,128):int128):int128):int128` in
+      let bg3_concl = List.nth (conjuncts(lhand(concl(ISPECL [g3; `word (val (mask8c:int64) MOD 256):byte`;
+           `word_subword (chunk0:int128) (64,8):byte`; `word_subword (chunk0:int128) (72,8):byte`;
+           `word_subword (chunk0:int128) (80,8):byte`; `word_subword (chunk0:int128) (88,8):byte`] SUBITER_STORE_SPEC)))) 1 in
+      let bg3_imp = prove(mk_imp(concl f0d, bg3_concl),
+        DISCH_THEN(fun f0eq -> REPEAT STRIP_TAC THEN
+          FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+            (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+          CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[WORD_ZX_TRIVIAL] THEN
+          SIMP_TAC[WORD_SUBWORD_SUBWORD;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+          REWRITE_TAC[f0eq] THEN
+          REPEAT(CHANGED_TAC(SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+                   DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+            CONV_TAC NUM_REDUCE_CONV)) THEN
+          REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REFL_TAC)) in
+      ASSUME_TAC (MP bg3_imp f0d)) THEN
+  (* bg4: sub-iter-4 gather forall over the HIGH 128 lane >>64 (lanes 24-31 / chunk0 nibbles 96,104,112,120). *)
+  W(fun (asl,w) ->
+      let f0d = find (fun th -> is_eq(concl th) && lhand(concl th) = `f0sub:int256`) (map snd asl) in
+      let g4 = `word_zx (word_zx (word_ushr (word_zx (word_zx (word_subword (f0sub:int256) (128,128):int128):int128):int128) 64):int128):int128` in
+      let bg4_concl = List.nth (conjuncts(lhand(concl(ISPECL [g4; `word (val (mask8d:int64) MOD 256):byte`;
+           `word_subword (chunk0:int128) (96,8):byte`; `word_subword (chunk0:int128) (104,8):byte`;
+           `word_subword (chunk0:int128) (112,8):byte`; `word_subword (chunk0:int128) (120,8):byte`] SUBITER_STORE_SPEC)))) 1 in
+      let bg4_imp = prove(mk_imp(concl f0d, bg4_concl),
+        DISCH_THEN(fun f0eq -> REPEAT STRIP_TAC THEN
+          FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+            (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+          CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[WORD_ZX_TRIVIAL] THEN
+          REWRITE_TAC[SUBWORD_USHR] THEN CONV_TAC NUM_REDUCE_CONV THEN
+          SIMP_TAC[WORD_SUBWORD_SUBWORD;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+          REWRITE_TAC[f0eq] THEN
+          REPEAT(CHANGED_TAC(SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+                   DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+            CONV_TAC NUM_REDUCE_CONV)) THEN
+          REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REFL_TAC)) in
+      ASSUME_TAC (MP bg4_imp f0d)) THEN
   (* MASKBIT forall derived NOW (f1bnd word_join def still present): bit 7(f1bnd lane k) <=>
      EL k[chunk0 nibbles]<9. ASSUME it — survives the DROP below + downstream purges. Used by
      counter stage 3b. (Probe proves this SUBGOAL before its DROP, lines 216-237.) *)
