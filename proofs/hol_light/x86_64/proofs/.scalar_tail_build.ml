@@ -54,6 +54,26 @@ let JAE_NOT_TAKEN_LT = prove
   MP_TAC(ARITH_RULE `0 < 2 EXP 32`) THEN
   REWRITE_TAC[GSYM INT_OF_NUM_LT; GSYM INT_OF_NUM_ADD] THEN INT_ARITH_TAC);;
 
+(* jae(Condition_NB) TAKEN: when k<=a the unsigned >= jump IS taken (flag eq holds).
+   Companion of JAE_NOT_TAKEN_LT for the nibble-reject branches (cmp r10d/r11d, 9). *)
+let JAE_TAKEN_GE = prove
+ (`!a k:num. k <= a /\ a < 2 EXP 32
+     ==> (&(val(word_zx(word a:int64):int32)):int - &k =
+          &(val(word_sub(word_zx(word a:int64):int32) (word k):int32)))`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  SUBGOAL_THEN `val(word_zx(word a:int64):int32) = a` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_ZX_64_32 THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(word_sub (word_zx(word a:int64):int32) (word k:int32)) = a - k` ASSUME_TAC THENL
+   [REWRITE_TAC[VAL_WORD_SUB_CASES; DIMINDEX_32] THEN ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN `val(word k:int32) = k` SUBST1_TAC THENL
+     [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_32] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+    COND_CASES_TAC THENL [REFL_TAC; REPEAT(POP_ASSUM MP_TAC) THEN ARITH_TAC];
+    ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `&(a - k):int = &a - &k` SUBST1_TAC THENL
+   [MATCH_MP_TAC(GSYM INT_OF_NUM_SUB) THEN ASM_REWRITE_TAC[]; ALL_TAC] THEN
+  REFL_TAC);;
+
 (* Fast RIP-cond resolver: rewrites ONLY the RIP equation (a small term), not the
    whole eventually-goal — avoids the ~600s catastrophic whole-goal REWRITE. Finds
    the RIP=(if cond then..else..) assumption, the matching ~cond among assumptions
@@ -68,3 +88,13 @@ let RESOLVE_RIP_FAST =
     FIRST_X_ASSUM(K ALL_TAC o check (fun th -> let c=concl th in
         is_eq c && can (find_term (fun x->x=`RIP`)) c && can (find_term is_cond) c)) THEN
     ASSUME_TAC resolved);;
+
+(* ======================================================================== *)
+(* Per-byte scalar-tail body lemma: one trip pc+318 -> pc+318, consuming    *)
+(* input byte at position p, extending output by REJ_SAMPLE_ETA4_BYTES[b].   *)
+(* Entry generalized to arbitrary p so the wrapper can iterate; the          *)
+(* ~(L=255 /\ low<9) hypothesis rules out the mid-byte exit (handled by the  *)
+(* terminal segment, not this looping body).                                 *)
+(* ======================================================================== *)
+
+(* placeholder — body lemma proof script under construction *)
