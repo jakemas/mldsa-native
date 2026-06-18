@@ -329,7 +329,7 @@ let BYTE_MOD16_LT = prove
   GEN_TAC THEN MP_TAC(SPECL[`val(b:byte)`;`16`] MOD_LT_EQ) THEN ARITH_TAC);;
 
 Printf.printf "ABOUT_TO_PROVE\n";;
-let _ = (try prove(clean_body_tm,
+let CBB_SI1_TAC : tactic =
   REPEAT GEN_TAC THEN STRIP_TAC THEN
   SUBGOAL_THEN `16 * i <= 256` ASSUME_TAC THENL
    [UNDISCH_TAC `16 * (i + 1) <= 256` THEN ARITH_TAC; ALL_TAC] THEN
@@ -657,7 +657,7 @@ let _ = (try prove(clean_body_tm,
          (let oc=open_out "/tmp/integrated_ok.txt" in
           output_string oc (if exists (fun (_,th) -> concl th = `read RIP s23 = word (pc + 167):int64`) asl
                             then "DONE: RIP=pc+167 + store(16i+4)" else "partial");
-          close_out oc); NO_TAC)
+          close_out oc); ALL_TAC)
        ;
        W(fun (asl,w) ->
          let pdef = find (fun th -> is_eq(concl th) && rand(concl th)=`pshuf1:int256` && can(find_term(fun u->match u with Const("word_join",_)->true|_->false))(concl th)) (map snd asl) in
@@ -681,6 +681,6 @@ let _ = (try prove(clean_body_tm,
        REPEAT(CHANGED_TAC(SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
                 DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
          CONV_TAC NUM_REDUCE_CONV)) THEN
-       REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REFL_TAC)]) with e -> (let oc=open_out "/tmp/err.txt" in output_string oc ("FAIL: "^Printexc.to_string e^"\n"); close_out oc); REFL `T`);;
+       REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REFL_TAC)];;
 
 Printf.printf "SUBITER1_COMPLETE: prologue->counters->mid-guard(pc+167)->sub-iter-1 store folded (SUB_LIST 0,16i+4). Sub-iters 2-4 pending (see .eta4_instrmap.txt + memory eta4-s22-mkcomb-reorder).\n";;
