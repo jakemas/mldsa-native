@@ -6,7 +6,9 @@ let SI1_FOLD_V2 : tactic =
     W(fun (asl,w) ->
       let asms = map snd asl in
       let bg = find (fun th -> let c=concl th in is_forall c && can(find_term(fun u->u=`f0sub:int256`))c &&
-          can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))c) asms in
+          can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))c &&
+          not(can(find_term(fun u->match u with Const("word_ushr",_)->true|_->false))c) &&
+          can(find_term(fun u->u=`word_subword (chunk0:int128) (24,8):byte`))c) asms in
       let mthm = find (fun th -> concl th = maskbit_tgt) asms in
       let storef = find (fun th -> can(find_term(fun u->match u with Const("bytes256",_)->true|_->false))(concl th) &&
           can(find_term(fun u->match u with Const("usimd8",_)->true|_->false))(concl th) &&

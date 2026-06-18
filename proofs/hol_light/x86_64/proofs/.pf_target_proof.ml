@@ -42,3 +42,11 @@ let PF_PROOF : tactic =
     CONV_TAC NUM_REDUCE_CONV THEN
     REWRITE_TAC[WORD_ZX_TRIVIAL; VAL_WORD_ZX_GEN; DIMINDEX_64; DIMINDEX_32; DIMINDEX_8] THEN CONV_TAC NUM_REDUCE_CONV THEN
     CONV_TAC(TOP_DEPTH_CONV SUBWORD_ZX_LOW_CONV) THEN REWRITE_TAC[ZX_128_256_128]);;
+
+(* SUBWORD_USHR: word_subword(word_ushr x n)(lo,wid) = word_subword x (lo+n,wid). Needed for
+   the >>64-shifted gather sources of sub-iters 2 and 4 (vpsrldq). *)
+let SUBWORD_USHR = prove
+ (`!(x:(M)word) n lo wid. word_subword (word_ushr x n) (lo,wid):(N)word = word_subword x (lo+n,wid)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[WORD_EQ_BITS_ALT] THEN X_GEN_TAC `k:num` THEN STRIP_TAC THEN
+  REWRITE_TAC[BIT_WORD_SUBWORD; BIT_WORD_USHR] THEN
+  REWRITE_TAC[ARITH_RULE `(lo + k) + n = (lo + n) + k`]);;

@@ -86,6 +86,28 @@ let PREFIX_G_FULL_TAC : tactic =
             CONV_TAC NUM_REDUCE_CONV)) THEN
           REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REFL_TAC)) in
       ASSUME_TAC (MP gather_imp f0d)) THEN
+  (* bg2: sub-iter-2 gather forall over the >>64-shifted low-lane source g2 (lanes 8-15 /
+     chunk0 nibbles 32,40,48,56). Derived early (f0sub word_join live); survives to s28.
+     Built as the SUBITER_STORE_SPEC gather-hyp shape so SI2_FOLD discharges by MATCH_ACCEPT. *)
+  W(fun (asl,w) ->
+      let f0d = find (fun th -> is_eq(concl th) && lhand(concl th) = `f0sub:int256`) (map snd asl) in
+      let g2 = `word_zx (word_zx (word_ushr (word_zx (word_zx (word_subword (f0sub:int256) (0,128):int128):int128):int128) 64):int128):int128` in
+      let bg2_concl = List.nth (conjuncts(lhand(concl(ISPECL [g2; `word (val (mask8b:int64) MOD 256):byte`;
+           `word_subword (chunk0:int128) (32,8):byte`; `word_subword (chunk0:int128) (40,8):byte`;
+           `word_subword (chunk0:int128) (48,8):byte`; `word_subword (chunk0:int128) (56,8):byte`] SUBITER_STORE_SPEC)))) 1 in
+      let bg2_imp = prove(mk_imp(concl f0d, bg2_concl),
+        DISCH_THEN(fun f0eq -> REPEAT STRIP_TAC THEN
+          FIRST_ASSUM(REPEAT_TCL DISJ_CASES_THEN SUBST1_TAC o MATCH_MP
+            (ARITH_RULE `j<8 ==> j=0\/j=1\/j=2\/j=3\/j=4\/j=5\/j=6\/j=7`)) THEN
+          CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[WORD_ZX_TRIVIAL] THEN
+          REWRITE_TAC[SUBWORD_USHR] THEN CONV_TAC NUM_REDUCE_CONV THEN
+          SIMP_TAC[WORD_SUBWORD_SUBWORD;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+          REWRITE_TAC[f0eq] THEN
+          REPEAT(CHANGED_TAC(SIMP_TAC[WORD_SUBWORD_JOIN_LOWER; WORD_SUBWORD_JOIN_UPPER;
+                   DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256;ARITH] THEN
+            CONV_TAC NUM_REDUCE_CONV)) THEN
+          REWRITE_TAC[WORD_SUBWORD_BYTE_ID] THEN CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REFL_TAC)) in
+      ASSUME_TAC (MP bg2_imp f0d)) THEN
   (* MASKBIT forall derived NOW (f1bnd word_join def still present): bit 7(f1bnd lane k) <=>
      EL k[chunk0 nibbles]<9. ASSUME it — survives the DROP below + downstream purges. Used by
      counter stage 3b. (Probe proves this SUBGOAL before its DROP, lines 216-237.) *)
