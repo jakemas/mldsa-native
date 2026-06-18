@@ -33,17 +33,55 @@ state is reviewable and not lost between sessions.
 | `proofs/hol_light/x86_64/mldsa/rej_uniform_eta4_avx2_asm.S` | Symlink/copy used by HOL-Light build (matches the production `.S`). |
 | `proofs/hol_light/aarch64/proofs/rej_uniform_eta4_aarch64_asm.ml` | Reference aarch64 proof — canonical structure for what we're aiming the x86 proof to look like. |
 
-## eta4 proof — current state
+## eta4 proof — current state (UPDATED 2026-06-18)
 
-**The proof file loads end-to-end** against the current (clean) asm.
+**MAJOR UPDATE: the hard SIMD loop-body cheat is now DISCHARGED cheat-free.**
+`MLDSA_REJUNIFORM_ETA4_CLEAN_BODY` is a fully proven theorem (hyps=0, no
+`CHEAT_TAC`) covering the entire SIMD loop body pc+56→pc+56 for the
+continue case (all 4 sub-iters: gather + genuine table-load bridge +
+store-fold + counters + 3 mid-guards + final RAX/RCX). Proof tactic
+`CLEAN_BODY_FULL_TAC` (~153s), reproduces it. All artifacts are dotfiles
+in this directory (`.prefix_g_full_tac.ml`, `.si{1,2,3,4}_*.ml`,
+`.maskbit_tgt*.ml`, `.tab*_teq*.ml`, `.pf_target_proof.ml`,
+`.acc_full_len.ml`, `.rax_final.ml`, `.rcx_final.ml`, `.clean_body_full.ml`).
+See memory note `eta4-subiter2-r9-unblocked.md` for the full recipe.
+
 `MLDSA_REJ_UNIFORM_ETA4_CORRECT` is reduced to three subgoals via
 `ENSURES_WHILE_UP2_TAC` (preamble / loop body / post-loop tail).
 
 | Subgoal | PC range | Status |
 | --- | --- | --- |
-| 1 — preamble (12 instructions: 2nd `endbr64`, 3× broadcast-constant setup, `xorl` of counters) | `pc → pc+56` | **Fully proved** |
-| 2 — loop body, one outer iteration (4 sub-iters of the SIMD compaction) | `pc+56 → pc+56` or `pc+318` | **Admitted** (`MLDSA_REJ_UNIFORM_ETA4_BODY_CHEAT`) |
-| 3 — post-loop scalar tail | `pc+318 → pc+406` | **Admitted** (`MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_CHEAT`) |
+| 1 — preamble (12 instructions) | `pc → pc+56` | **Fully proved** |
+| 2 — loop body, one outer iteration | `pc+56 → pc+56` or `pc+318` | **CONTINUE branch (i+1<N) proved** via CLEAN_BODY + ENSURES_FRAME_SUBSUMED (`CONTINUE_TAC` in `.body_wiring.ml`). **EXIT branch (i+1=N) open.** Still gated by `BODY_CHEAT` until both branches + the YMM2/3/4-strengthened loop invariant are wired in. |
+| 3 — post-loop scalar tail | `pc+318 → pc+406` | **Admitted** (`SCALAR_TAIL_CHEAT`) |
+
+### The 4 remaining `CHEAT_TAC`s and what closes each
+
+1. **`BODY_CHEAT`** — replace with: (a) strengthen the `ENSURES_WHILE_UP2`
+   loop invariant (line ~4796) to thread `YMM2/3/4` (re-prove subgoal 1 to
+   establish them — the 3 `vpbroadcastd` at instrs ~5/10/15 set them);
+   (b) continue branch = `CONTINUE_TAC` (DONE); (c) **exit branch (i+1=N):
+   genuinely multi-way.** Decode shows the loop JAs to pc+318 (taken) at
+   pc+56 (`cmp eax,248`), pc+67 (`cmp ecx,256`), pc+156/212/265 (`cmp eax,248`
+   after sub-iters 1/2/3), and the sub-iter-4 final guard. In the last
+   iteration the running outlen (eax) crosses 248 — or ctr crosses 256 — at
+   *some* guard, so it's a 5-way case split, each arm landing at pc+318 with
+   the appropriate partial outlen (≤280<2^32 by `NIBLEN_BOUND_FROM_WOP`, so
+   store/RAX bounds hold; spec post truncates via `SUB_LIST(0,256)`).
+   CLEAN_BODY assumes all guards not-taken (its `niblen(16(i+1))≤248` hyp is
+   exactly the WOP exit condition — false at i+1=N), so it does NOT prove the
+   exit branch; the exit iteration needs its own stepping. **Template: the
+   COMPLETE aarch64 eta4 proof** (`../../aarch64/proofs/rej_uniform_eta4_aarch64_asm.ml`,
+   0 cheats) — same algorithm/WOP/case-A-B structure.
+2. **`SCALAR_TAIL_CHEAT`** (pc+318→pc+406) — a self-contained scalar
+   byte-loop. Decode (from EXEC): pc+318 `cmp eax,256;jnb exit`; pc+325
+   `cmp ecx,272;jnb exit`; load byte rsi+rcx, inc ecx; low nibble (`&15`),
+   `cmp 9;jnb skip`, store `4-nibble` at rdi+4*rax, inc eax; `cmp eax,256;jnb`;
+   high nibble (`>>4&15`) same; `jmp pc+318`. Own nested `ENSURES_WHILE_UP`.
+   Template: aarch64 tail + PR1014 `SCALAR_BODY_LEMMA`.
+3. **`MEMSAFE`** + **`NOIBT_SUBROUTINE_MEMSAFE`** — re-run the whole program
+   tracking memory accesses. Template: PR1014 `DISCHARGE_MEMSAFE_ASM_TAC`
+   toolkit (+ aarch64 eta4 memsafe).
 
 `LENGTH mldsa_rej_uniform_eta4_tmc = 407` (411-byte `.o text` minus
 the gcc-auto-inserted leading `endbr64` stripped by `define_trimmed`).
