@@ -126,8 +126,23 @@ let POPCNT_BYTE1 = prove
   REWRITE_TAC[BITVAL_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN
   CONV_TAC WORD_REDUCE_CONV);;
 
+(* zxbyte_eq: the simulator's R9 popcount arg has zx types byte->i32->i64->i32, while
+   POPCNT_BYTE1 was stated all-i32 (HOL's default).  They print identically but aconv=false.
+   This bridges them for v<256 (both = word v:int32).  Use:
+   TRANS (AP_TERM `word_popcount` (MP (SPEC `val mask8b MOD 256` zxbyte_eq) <v<256>)) pop_len2
+   gives pop_len2 over the simulator's exact type, so REWRITE fires on the mid-guard COND. *)
+let zxbyte_eq = prove
+ (`!v. v < 256 ==>
+     word_zx(word_zx(word_zx(word v:byte):int32):int64):int32 =
+     word_zx(word_zx(word_zx(word v:int32):int32):int32):int32`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[GSYM VAL_EQ] THEN
+  REWRITE_TAC[VAL_WORD_ZX_GEN; VAL_WORD; DIMINDEX_8; DIMINDEX_32; DIMINDEX_64] THEN
+  ASM_SIMP_TAC[MOD_LT; ARITH_RULE `v < 256 ==> v < 2 EXP 8 /\ v < 2 EXP 32 /\ v < 2 EXP 64`] THEN
+  CONV_TAC(DEPTH_CONV NUM_REDUCE_CONV) THEN
+  ASM_SIMP_TAC[MOD_LT; ARITH_RULE `v < 256 ==> v < 2 EXP 8 /\ v < 2 EXP 32`]);;
+
 (* TODO sub-iters 3,4: BYTE2_DIVMOD / BYTE3_DIVMOD ((SUM32 DIV 65536) MOD 256 etc.) +
    MASK_SHIFT16/24_MOD256 (double/triple word_ushr by 8) + POPCNT_BYTE2/BYTE3.  Same
    shape as BYTE1; the SUBST1_TAC reassociation peels one more 256* factor each. *)
 
-Printf.printf "SUBITER_K_LEMMAS loaded: MM64_256 MM32_64 divmod_swap MM32_DIV256 MASK_SHIFT8_MOD256 BYTE1_DIVMOD POPCNT_BYTE1\n";;
+Printf.printf "SUBITER_K_LEMMAS loaded\n";;
