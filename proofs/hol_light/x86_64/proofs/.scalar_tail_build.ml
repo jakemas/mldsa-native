@@ -1,0 +1,70 @@
+(* Scalar-tail proof build file. Loaded after the main eta4 file + .scalar_tail_lemmas.ml.
+   Builds: READ_1BYTE_EL, the per-byte loop body lemma, the WOP scalar-loop wrapper,
+   and finally MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL (replacing the CHEAT). *)
+
+(* Read one input byte at offset p from the buffer's num_of_wordlist contract. *)
+let READ_1BYTE_EL = prove
+ (`!(inlist:byte list) (buf:int64) (s:x86state) p n.
+     LENGTH inlist = n /\ p < n /\
+     read(memory :> bytes(buf, n)) s = num_of_wordlist inlist
+     ==> read(memory :> bytes8 (word_add buf (word p))) s = EL p inlist`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(ISPECL [`inlist:byte list`; `p:num`] EL_NUM_OF_WORDLIST) THEN
+  ASM_REWRITE_TAC[DIMINDEX_8] THEN DISCH_THEN SUBST1_TAC THEN
+  REWRITE_TAC[bytes8; READ_COMPONENT_COMPOSE; asword; through; read] THEN
+  SUBGOAL_THEN
+   `read (bytes (word_add buf (word p),1)) (read memory s) =
+    read (bytes (buf,n)) (read memory s) DIV 2 EXP (8 * p) MOD 256`
+   SUBST1_TAC THENL
+   [REWRITE_TAC[READ_BYTES_DIV] THEN
+    MP_TAC(ISPECL [`word_add buf (word p):int64`; `n - p`; `1`; `read memory s:int64->byte`] READ_BYTES_MOD) THEN
+    SUBGOAL_THEN `MIN (n - p) 1 = 1` SUBST1_TAC THENL
+     [REWRITE_TAC[ARITH_RULE `MIN a 1 = 1 <=> 1 <= a`] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN DISCH_THEN(SUBST1_TAC o SYM) THEN REFL_TAC;
+    ALL_TAC] THEN
+  UNDISCH_TAC `read (memory :> bytes (buf,n)) s = num_of_wordlist (inlist:byte list)` THEN
+  REWRITE_TAC[READ_COMPONENT_COMPOSE] THEN DISCH_THEN SUBST1_TAC THEN
+  SUBGOAL_THEN `(256:num) = 2 EXP dimindex(:8)` SUBST1_TAC THENL
+   [REWRITE_TAC[DIMINDEX_8] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+  REWRITE_TAC[WORD_MOD_SIZE]);;
+
+(* jae(Condition_NB) fall-through: when a<k the unsigned >= jump is NOT taken.
+   The model's flag condition is INT-typed (int_of_num &), NOT real — matching
+   it requires the :int annotation (the classic invisible-type trap). Resolves
+   the scalar-tail guards at pc+323 (256), pc+331 (272), pc+373/pc+387 (256). *)
+let JAE_NOT_TAKEN_LT = prove
+ (`!a k:num. a < k /\ k < 2 EXP 32
+     ==> ~(&(val(word_zx(word a:int64):int32)):int - &k =
+           &(val(word_sub(word_zx(word a:int64):int32) (word k):int32)))`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  SUBGOAL_THEN `val(word_zx(word a:int64):int32) = a` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_ZX_64_32 THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(word_sub (word_zx(word a:int64):int32) (word k:int32)) = a + 2 EXP 32 - k` ASSUME_TAC THENL
+   [REWRITE_TAC[VAL_WORD_SUB_CASES; DIMINDEX_32] THEN ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN `val(word k:int32) = k` SUBST1_TAC THENL
+     [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_32] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+    COND_CASES_TAC THENL [REPEAT(POP_ASSUM MP_TAC) THEN ARITH_TAC; REFL_TAC];
+    ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `a + 2 EXP 32 - k = (a + 2 EXP 32) - k /\ k <= a + 2 EXP 32` STRIP_ASSUME_TAC THENL
+   [ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `&((a + 2 EXP 32) - k):int = &(a + 2 EXP 32) - &k` SUBST1_TAC THENL
+   [MATCH_MP_TAC(GSYM INT_OF_NUM_SUB) THEN ASM_REWRITE_TAC[]; ALL_TAC] THEN
+  MP_TAC(ARITH_RULE `0 < 2 EXP 32`) THEN
+  REWRITE_TAC[GSYM INT_OF_NUM_LT; GSYM INT_OF_NUM_ADD] THEN INT_ARITH_TAC);;
+
+(* Fast RIP-cond resolver: rewrites ONLY the RIP equation (a small term), not the
+   whole eventually-goal — avoids the ~600s catastrophic whole-goal REWRITE. Finds
+   the RIP=(if cond then..else..) assumption, the matching ~cond among assumptions
+   (must be present and SAME-TYPED), and collapses via COND_CLAUSES. *)
+let RESOLVE_RIP_FAST =
+  W(fun (asl,_) ->
+    let _,ripth = List.find (fun (_,th) -> let c=concl th in
+        is_eq c && can (find_term (fun x->x=`RIP`)) c && can (find_term is_cond) c) asl in
+    let p = fst(dest_cond(find_term is_cond (concl ripth))) in
+    let negfact = snd(List.find (fun (_,th) -> aconv (concl th) (mk_neg p)) asl) in
+    let resolved = REWRITE_RULE[negfact; COND_CLAUSES] ripth in
+    FIRST_X_ASSUM(K ALL_TAC o check (fun th -> let c=concl th in
+        is_eq c && can (find_term (fun x->x=`RIP`)) c && can (find_term is_cond) c)) THEN
+    ASSUME_TAC resolved);;
