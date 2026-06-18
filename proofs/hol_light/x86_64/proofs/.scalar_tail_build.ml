@@ -97,8 +97,6 @@ let RESOLVE_RIP_FAST =
 (* terminal segment, not this looping body).                                 *)
 (* ======================================================================== *)
 
-(* placeholder — body lemma proof script under construction *)
-
 (* Nibble-value bridge: the X86_VSTEPS-produced R10 expression (low nibble) after
    `mov r10d,r11d; and r10d,15` over the movzbl-loaded byte b, collapses to
    word(val b MOD 16):int64. The zx-tower shape (byte->int16->int32 widenings)
@@ -118,3 +116,23 @@ let R10_NIBBLE_VAL = prove
   SUBGOAL_THEN `val(b:byte) MOD 16 < 18446744073709551616` ASSUME_TAC THENL
    [MP_TAC(SPECL[`val(b:byte)`;`16`] MOD_LT_EQ) THEN ASM_ARITH_TAC; ALL_TAC] THEN
   ASM_SIMP_TAC[MOD_LT] THEN CONV_TAC NUM_REDUCE_CONV);;
+
+(* High-nibble bridge: R11 after `shr r11d,4; and r11d,15` collapses to
+   word(val b DIV 16):int64. *)
+let R11_NIBBLE_VAL = prove
+ (`!b:byte. word_zx(word_and (word_ushr (word_zx (word_zx (word_zx (word_zx (word_zx b:int16):int32):int32):int32):int32) 4) (word 15:int32)):int64 = word(val b DIV 16)`,
+  GEN_TAC THEN REWRITE_TAC[GSYM VAL_EQ] THEN
+  SUBGOAL_THEN `(word 15:int32) = word(2 EXP 4 - 1)` SUBST1_TAC THENL
+   [CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+  SIMP_TAC[VAL_WORD_ZX_GEN; VAL_WORD_AND_MASK_WORD; VAL_WORD_USHR; DIMINDEX_8; DIMINDEX_16; DIMINDEX_32; DIMINDEX_64;
+           VAL_WORD; ARITH] THEN
+  MP_TAC(ISPEC `b:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN STRIP_TAC THEN
+  CONV_TAC NUM_REDUCE_CONV THEN
+  SUBGOAL_THEN `val(b:byte) MOD 65536 = val b /\ val(b:byte) MOD 4294967296 = val b`
+    STRIP_ASSUME_TAC THENL [CONJ_TAC THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `val(b:byte) DIV 16 < 18446744073709551616` ASSUME_TAC THENL
+   [MP_TAC(SPECL[`val(b:byte)`;`16`] DIV_LE) THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(b:byte) DIV 16 MOD 16 = val(b:byte) DIV 16` SUBST1_TAC THENL
+   [MATCH_MP_TAC MOD_LT THEN MP_TAC(SPECL[`val(b:byte)`;`16`] DIV_LT) THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_SIMP_TAC[MOD_LT] THEN REWRITE_TAC[ARITH_RULE `2 EXP 4 = 16`]);;
