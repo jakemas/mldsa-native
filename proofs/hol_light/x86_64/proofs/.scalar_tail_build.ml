@@ -195,3 +195,38 @@ let LEN_STEP_NONE = prove
    ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist):int32 list) =
        LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list)`,
   REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN ASM_REWRITE_TAC[] THEN ARITH_TAC);;
+
+(* Per-byte output-list APPEND step, one per acceptance combination.
+   Used in the body lemma's memory fold: REJ(SUB(0,p+1)) = APPEND (REJ(SUB(0,p))) <new coeffs>. *)
+let REJ_STEP_BOTH = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ val(EL p inlist) MOD 16 < 9 /\ val(EL p inlist) DIV 16 < 9
+   ==> REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist) =
+       APPEND (REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist))
+              [word_sx(word_sub (word 4:int16) (word(val(EL p inlist) MOD 16))):int32;
+               word_sx(word_sub (word 4:int16) (word(val(EL p inlist) DIV 16))):int32]`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] REJ_SAMPLE_ETA4_BYTES_STEP_1) THEN
+  ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN AP_TERM_TAC THEN
+  MATCH_MP_TAC REJ_SAMPLE_ETA4_BYTES_1_BOTH THEN ASM_REWRITE_TAC[]);;
+let REJ_STEP_LO = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ val(EL p inlist) MOD 16 < 9 /\ ~(val(EL p inlist) DIV 16 < 9)
+   ==> REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist) =
+       APPEND (REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist))
+              [word_sx(word_sub (word 4:int16) (word(val(EL p inlist) MOD 16))):int32]`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] REJ_SAMPLE_ETA4_BYTES_STEP_1) THEN
+  ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN AP_TERM_TAC THEN
+  MATCH_MP_TAC REJ_SAMPLE_ETA4_BYTES_1_LOW_ONLY THEN ASM_REWRITE_TAC[]);;
+let REJ_STEP_HI = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ ~(val(EL p inlist) MOD 16 < 9) /\ val(EL p inlist) DIV 16 < 9
+   ==> REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist) =
+       APPEND (REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist))
+              [word_sx(word_sub (word 4:int16) (word(val(EL p inlist) DIV 16))):int32]`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] REJ_SAMPLE_ETA4_BYTES_STEP_1) THEN
+  ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN AP_TERM_TAC THEN
+  MATCH_MP_TAC REJ_SAMPLE_ETA4_BYTES_1_HIGH_ONLY THEN ASM_REWRITE_TAC[]);;
+let REJ_STEP_NONE = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ ~(val(EL p inlist) MOD 16 < 9) /\ ~(val(EL p inlist) DIV 16 < 9)
+   ==> REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist) = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist)`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] REJ_SAMPLE_ETA4_BYTES_STEP_1) THEN
+  ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN
+  SUBGOAL_THEN `REJ_SAMPLE_ETA4_BYTES [EL p (inlist:byte list)] = []` SUBST1_TAC THENL
+   [MATCH_MP_TAC REJ_SAMPLE_ETA4_BYTES_1_REJECT_BOTH THEN ASM_REWRITE_TAC[]; REWRITE_TAC[APPEND_NIL]]);;
