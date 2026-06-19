@@ -172,3 +172,26 @@ let HI_STORE_VAL = prove
                 val b DIV 16 = 4 \/ val b DIV 16 = 5 \/ val b DIV 16 = 6 \/ val b DIV 16 = 7 \/ val b DIV 16 = 8`
    MP_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   STRIP_TAC THEN ASM_REWRITE_TAC[] THEN CONV_TAC WORD_BLAST);;
+
+(* Per-byte output-length step lemmas, one per nibble-acceptance combination.
+   Drive the loop invariant's RAX update (LENGTH outlist grows by 0/1/2). *)
+let LEN_STEP_BOTH = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ val(EL p inlist) MOD 16 < 9 /\ val(EL p inlist) DIV 16 < 9
+   ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist):int32 list) =
+       LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list) + 2`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN ASM_REWRITE_TAC[] THEN ARITH_TAC);;
+let LEN_STEP_LO = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ val(EL p inlist) MOD 16 < 9 /\ ~(val(EL p inlist) DIV 16 < 9)
+   ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist):int32 list) =
+       LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list) + 1`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN ASM_REWRITE_TAC[] THEN ARITH_TAC);;
+let LEN_STEP_HI = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ ~(val(EL p inlist) MOD 16 < 9) /\ val(EL p inlist) DIV 16 < 9
+   ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist):int32 list) =
+       LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list) + 1`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN ASM_REWRITE_TAC[] THEN ARITH_TAC);;
+let LEN_STEP_NONE = prove
+ (`!(inlist:byte list) p. p < LENGTH inlist /\ ~(val(EL p inlist) MOD 16 < 9) /\ ~(val(EL p inlist) DIV 16 < 9)
+   ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist):int32 list) =
+       LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list)`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`p:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN ASM_REWRITE_TAC[] THEN ARITH_TAC);;
