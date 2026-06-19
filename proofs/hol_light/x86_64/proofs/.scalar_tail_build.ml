@@ -110,7 +110,7 @@ let R10_NIBBLE_VAL = prove
            VAL_WORD; ARITH] THEN
   MP_TAC(ISPEC `b:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN STRIP_TAC THEN
   CONV_TAC NUM_REDUCE_CONV THEN
-  SUBGOAL_THEN `val(b:byte) MOD 65536 = val b /\ val(b:byte) MOD 4294967296 = val b`
+  SUBGOAL_THEN `val(b:byte) MOD 4294967296 = val b /\ val(b:byte) MOD 18446744073709551616 = val b`
     STRIP_ASSUME_TAC THENL [CONJ_TAC THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
   ASM_REWRITE_TAC[] THEN
   SUBGOAL_THEN `val(b:byte) MOD 16 < 18446744073709551616` ASSUME_TAC THENL
@@ -118,9 +118,10 @@ let R10_NIBBLE_VAL = prove
   ASM_SIMP_TAC[MOD_LT] THEN CONV_TAC NUM_REDUCE_CONV);;
 
 (* High-nibble bridge: R11 after `shr r11d,4; and r11d,15` collapses to
-   word(val b DIV 16):int64. *)
+   word(val b DIV 16):int64. Shape matches the X86_VSTEPS emission (ushr after a
+   byte->int32->int64->int32 zx-tower, then 2 more zx, then and). *)
 let R11_NIBBLE_VAL = prove
- (`!b:byte. word_zx(word_and (word_ushr (word_zx (word_zx (word_zx (word_zx (word_zx b:int16):int32):int32):int32):int32) 4) (word 15:int32)):int64 = word(val b DIV 16)`,
+ (`!b:byte. word_zx (word_and (word_zx (word_zx (word_ushr (word_zx (word_zx (word_zx (b:byte) :int32) :int64) :int32) 4) :int64) :int32) (word 15 :int32)) :int64 = word (val b DIV 16)`,
   GEN_TAC THEN REWRITE_TAC[GSYM VAL_EQ] THEN
   SUBGOAL_THEN `(word 15:int32) = word(2 EXP 4 - 1)` SUBST1_TAC THENL
    [CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
@@ -128,14 +129,25 @@ let R11_NIBBLE_VAL = prove
            VAL_WORD; ARITH] THEN
   MP_TAC(ISPEC `b:byte` VAL_BOUND) THEN REWRITE_TAC[DIMINDEX_8] THEN STRIP_TAC THEN
   CONV_TAC NUM_REDUCE_CONV THEN
-  SUBGOAL_THEN `val(b:byte) MOD 65536 = val b /\ val(b:byte) MOD 4294967296 = val b`
-    STRIP_ASSUME_TAC THENL [CONJ_TAC THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
-  ASM_REWRITE_TAC[] THEN
-  SUBGOAL_THEN `val(b:byte) DIV 16 < 18446744073709551616` ASSUME_TAC THENL
-   [MP_TAC(SPECL[`val(b:byte)`;`16`] DIV_LE) THEN ASM_ARITH_TAC; ALL_TAC] THEN
-  SUBGOAL_THEN `val(b:byte) DIV 16 MOD 16 = val(b:byte) DIV 16` SUBST1_TAC THENL
-   [MATCH_MP_TAC MOD_LT THEN MP_TAC(SPECL[`val(b:byte)`;`16`] DIV_LT) THEN ASM_ARITH_TAC; ALL_TAC] THEN
-  ASM_SIMP_TAC[MOD_LT] THEN REWRITE_TAC[ARITH_RULE `2 EXP 4 = 16`]);;
+  SUBGOAL_THEN `val(b:byte) MOD 4294967296 = val b /\ val(b:byte) MOD 18446744073709551616 = val b /\ (val(b:byte) DIV 16) MOD 18446744073709551616 = val b DIV 16 /\ (val(b:byte) DIV 16) MOD 4294967296 = val b DIV 16 /\ (val(b:byte) DIV 16) MOD 16 = val b DIV 16`
+    STRIP_ASSUME_TAC THENL
+   [REPEAT CONJ_TAC THEN MATCH_MP_TAC MOD_LT THEN MP_TAC(SPECL[`val(b:byte)`;`16`] DIV_LT) THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_REWRITE_TAC[]);;
+
+(* RAX after `inc eax` over RAX=word L (L<256): the int32 inc widens back to word(L+1):int64. *)
+let RAX_INC = prove
+ (`!L. L < 256 ==> word_zx(word_add (word_zx (word L:int64):int32) (word 1:int32)):int64 = word(L+1)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(word_zx(word L:int64):int32) = L` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_ZX_64_32 THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  REWRITE_TAC[GSYM VAL_EQ] THEN
+  SUBGOAL_THEN `val(word_zx(word_add (word_zx (word L:int64):int32) (word 1:int32)):int64) = L+1` SUBST1_TAC THENL
+   [SUBGOAL_THEN `val(word_add (word_zx (word L:int64):int32) (word 1:int32)) = L + 1` ASSUME_TAC THENL
+     [REWRITE_TAC[VAL_WORD_ADD; DIMINDEX_32] THEN ASM_REWRITE_TAC[VAL_WORD; DIMINDEX_32] THEN
+      CONV_TAC NUM_REDUCE_CONV THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC; ALL_TAC] THEN
+    MATCH_MP_TAC EQ_TRANS THEN EXISTS_TAC `val(word_add (word_zx (word L:int64):int32) (word 1:int32))` THEN
+    CONJ_TAC THENL [MATCH_MP_TAC VAL_WORD_ZX THEN REWRITE_TAC[DIMINDEX_32;DIMINDEX_64] THEN ARITH_TAC; ASM_REWRITE_TAC[]];
+    REWRITE_TAC[VAL_WORD; DIMINDEX_64] THEN CONV_TAC SYM_CONV THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC]);;
 
 (* Store-value bridges: the scalar tail computes `4 - nibble` as int32 then the
    model wraps it in word_zx(word_zx(...)) (32->64->32 round trip) at the vmovd/store.
