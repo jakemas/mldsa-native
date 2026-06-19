@@ -136,3 +136,27 @@ let R11_NIBBLE_VAL = prove
   SUBGOAL_THEN `val(b:byte) DIV 16 MOD 16 = val(b:byte) DIV 16` SUBST1_TAC THENL
    [MATCH_MP_TAC MOD_LT THEN MP_TAC(SPECL[`val(b:byte)`;`16`] DIV_LT) THEN ASM_ARITH_TAC; ALL_TAC] THEN
   ASM_SIMP_TAC[MOD_LT] THEN REWRITE_TAC[ARITH_RULE `2 EXP 4 = 16`]);;
+
+(* Store-value bridges: the scalar tail computes `4 - nibble` as int32 then the
+   model wraps it in word_zx(word_zx(...)) (32->64->32 round trip) at the vmovd/store.
+   For accepted nibbles (<9) this equals the spec coefficient word_sx(word_sub(word 4:int16)..).
+   Proved by enumerating the 9 accepted nibble values + WORD_BLAST. *)
+let LO_STORE_VAL = prove
+ (`!b:byte. val b MOD 16 < 9
+   ==> word_zx(word_zx(word_sub (word 4:int32) (word_zx(word(val b MOD 16):int64):int32):int32):int64):int32 =
+       word_sx(word_sub (word 4:int16) (word(val b MOD 16):int16):int16):int32`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(b:byte) MOD 16 = 0 \/ val b MOD 16 = 1 \/ val b MOD 16 = 2 \/ val b MOD 16 = 3 \/
+                val b MOD 16 = 4 \/ val b MOD 16 = 5 \/ val b MOD 16 = 6 \/ val b MOD 16 = 7 \/ val b MOD 16 = 8`
+   MP_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  STRIP_TAC THEN ASM_REWRITE_TAC[] THEN CONV_TAC WORD_BLAST);;
+
+let HI_STORE_VAL = prove
+ (`!b:byte. val b DIV 16 < 9
+   ==> word_zx(word_zx(word_sub (word 4:int32) (word_zx(word(val b DIV 16):int64):int32):int32):int64):int32 =
+       word_sx(word_sub (word 4:int16) (word(val b DIV 16):int16):int16):int32`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(b:byte) DIV 16 = 0 \/ val b DIV 16 = 1 \/ val b DIV 16 = 2 \/ val b DIV 16 = 3 \/
+                val b DIV 16 = 4 \/ val b DIV 16 = 5 \/ val b DIV 16 = 6 \/ val b DIV 16 = 7 \/ val b DIV 16 = 8`
+   MP_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  STRIP_TAC THEN ASM_REWRITE_TAC[] THEN CONV_TAC WORD_BLAST);;
