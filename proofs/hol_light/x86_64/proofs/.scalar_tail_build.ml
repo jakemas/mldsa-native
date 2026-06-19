@@ -102,7 +102,7 @@ let RESOLVE_RIP_FAST =
    word(val b MOD 16):int64. The zx-tower shape (byte->int16->int32 widenings)
    is exactly what VSTEPS emits for the load + zero-extends. *)
 let R10_NIBBLE_VAL = prove
- (`!b:byte. word_zx(word_and (word_zx (word_zx (word_zx (word_zx (word_zx b:int16):int32):int32):int32):int32) (word 15:int32)):int64 = word(val b MOD 16)`,
+ (`!b:byte. word_zx(word_and (word_zx (word_zx (word_zx (word_zx (word_zx b:int32):int64):int32):int64):int32) (word 15:int32)):int64 = word(val b MOD 16)`,
   GEN_TAC THEN REWRITE_TAC[GSYM VAL_EQ] THEN
   SUBGOAL_THEN `(word 15:int32) = word(2 EXP 4 - 1)` SUBST1_TAC THENL
    [CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
