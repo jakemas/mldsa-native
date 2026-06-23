@@ -61,6 +61,7 @@ let SCALAR_TAIL_BODY = prove
         nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
         nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table, 2048) /\
         p < 272 /\ L < 256 /\
         L = LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list) /\
         ~(L = 255 /\ val(EL p (inlist:byte list)) MOD 16 < 9)
@@ -68,6 +69,7 @@ let SCALAR_TAIL_BODY = prove
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
                   read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
                   read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
                   read RAX s = word L /\ read RCX s = word p /\
                   read(memory :> bytes(res, 4 * L)) s =
@@ -75,6 +77,7 @@ let SCALAR_TAIL_BODY = prove
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
                   read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
                   read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
                   (let outlist = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p+1) inlist) in
                    read RAX s = word(LENGTH outlist) /\ read RCX s = word(p+1) /\
