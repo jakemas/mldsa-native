@@ -244,3 +244,44 @@ let OUTLEN_STEP_GE = prove
          LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,k+1) inlist):int32 list)`,
   REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`k:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN
   ASM_REWRITE_TAC[] THEN ARITH_TAC);;
+
+(* Count-exit cap lemmas for the WOP wrapper terminal case (outlen >= 256). *)
+(* Spec side: SUB_LIST(0,256) of full REJ = SUB_LIST(0,256) of any prefix whose
+   output already reached >=256 elements. *)
+let SUB_LIST_256_PREFIX_GE = prove
+ (`!(inlist:byte list) k.
+     k <= LENGTH inlist /\
+     256 <= LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,k) inlist):int32 list)
+     ==> SUB_LIST(0,256)(REJ_SAMPLE_ETA4_BYTES inlist :int32 list) =
+         SUB_LIST(0,256)(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,k) inlist))`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`k:num`; `inlist:byte list`] REJ_SAMPLE_ETA4_SUB_LIST_PREFIX) THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCH_THEN(X_CHOOSE_THEN `ext:int32 list` (fun th -> GEN_REWRITE_TAC (LAND_CONV o RAND_CONV) [SYM th])) THEN
+  MATCH_MP_TAC SUB_LIST_APPEND_LEFT THEN ASM_REWRITE_TAC[]);;
+
+(* Memory side: if res holds list L (len>=256), bytes(res,4*256) holds SUB_LIST(0,256) L. *)
+let MEM_PREFIX_256 = prove
+ (`!res (s:x86state) (L:int32 list).
+     256 <= LENGTH L /\
+     read(memory :> bytes(res, 4 * LENGTH L)) s = num_of_wordlist L
+     ==> read(memory :> bytes(res, 4 * 256)) s = num_of_wordlist(SUB_LIST(0,256) L)`,
+  REPEAT STRIP_TAC THEN
+  ABBREV_TAC `pre = SUB_LIST(0,256) (L:int32 list)` THEN
+  ABBREV_TAC `suf = SUB_LIST(256, LENGTH(L:int32 list) - 256) L` THEN
+  SUBGOAL_THEN `(L:int32 list) = APPEND pre suf` ASSUME_TAC THENL
+   [MAP_EVERY EXPAND_TAC ["pre";"suf"] THEN
+    MP_TAC(ISPECL [`L:int32 list`; `256`; `LENGTH(L:int32 list) - 256`; `0`] SUB_LIST_SPLIT) THEN
+    REWRITE_TAC[ADD_CLAUSES] THEN ASM_SIMP_TAC[ARITH_RULE `256 <= n ==> 256 + (n - 256) = n`] THEN
+    REWRITE_TAC[SUB_LIST_LENGTH]; ALL_TAC] THEN
+  SUBGOAL_THEN `LENGTH(pre:int32 list) = 256` ASSUME_TAC THENL
+   [EXPAND_TAC "pre" THEN REWRITE_TAC[LENGTH_SUB_LIST; SUB_0] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  UNDISCH_TAC `read(memory :> bytes(res, 4 * LENGTH (L:int32 list))) s = num_of_wordlist L` THEN
+  GEN_REWRITE_TAC (LAND_CONV o ONCE_DEPTH_CONV) [ASSUME `(L:int32 list) = APPEND pre suf`] THEN
+  ASM_REWRITE_TAC[LENGTH_APPEND] THEN
+  MP_TAC(ISPECL [`memory:(x86state,int64->byte)component`; `res:int64`; `s:x86state`;
+     `pre:int32 list`; `suf:int32 list`; `4*256`; `4 * LENGTH(suf:int32 list)`]
+     BYTES_EQ_NUM_OF_WORDLIST_APPEND) THEN
+  ASM_REWRITE_TAC[DIMINDEX_32; ARITH_RULE `32 * 256 = 8 * (4 * 256)`] THEN
+  REWRITE_TAC[ARITH_RULE `4 * 256 + 4 * s = 4 * (256 + s)`] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN SIMP_TAC[]);;
