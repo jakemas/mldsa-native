@@ -1,31 +1,44 @@
 (* ========================================================================= *)
-(* SCALAR_TAIL_RUN: the byte-loop-to-exit lemma, by strong induction on the   *)
-(* byte-budget d (bound on 272-p). Subsumes the K-1 loop + terminal trip in   *)
-(* one recursion, avoiding the ENSURES_WHILE off-by-one. From any pc+318 with  *)
-(* RAX=outlen(p), RCX=p, res=REJ(SUB(0,p)), runs to pc+406 with capped output. *)
-(* Then MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL = RUN specialized at p=16N (d=272). *)
-(* Load after main file + .scalar_tail_lemmas + .scalar_tail_build + .scalar_body_lemma. *)
+(* SCALAR_TAIL_RUN: byte-loop-to-exit by strong induction on byte-budget d.   *)
+(* Needs hyp LENGTH(REJ(SUB(0,p)))<=256 (the SIMD loop exits with outlen<=256, *)
+(* so count-exit gives outlen=256 exactly = cap length). Load after main +     *)
+(* .scalar_tail_lemmas + .scalar_tail_build + .scalar_body_lemma.              *)
 (*                                                                            *)
-(* INDUCTION STRUCTURE (INDUCT_TAC on d):                                     *)
-(*  base d=0: p=272 (from 272-p<=0 /\ p<=272). Both top guards: cmp eax,256    *)
-(*    (taken if outlen272>=256 -> pc+406) else cmp ecx,272 jae TAKEN -> pc+406.*)
-(*    Output: count-exit (outlen>=256) via SUB_LIST_256_PREFIX_GE+MEM_PREFIX_256;*)
-(*    offset-exit (outlen<256) via SUB_LIST_256_LE (cap identity) + SUB(0,272)=inlist.*)
-(*  step d=SUC d': three sub-cases at pos p:                                  *)
-(*   (a) outlen(p)>=256: count-exit now (cmp eax,256 jae TAKEN -> pc+406).      *)
-(*   (b) outlen(p)<256 /\ p=272: offset-exit (cmp ecx,272 jae TAKEN -> pc+406). *)
-(*   (c) outlen(p)<256 /\ p<272: sub-case on mid-exit (outlen=255 /\ low<9):    *)
-(*     - mid-exit: step pc+318..pc+373 (cmp eax,256 nt; cmp ecx,272 nt; load;  *)
-(*       inc rcx; low nibble store; inc rax -> outlen 256; cmp eax,256 jae TAKEN*)
-(*       -> pc+406). Output count-exit at p+1 (low nibble only) via the cap.    *)
-(*     - clean: MATCH_MP SCALAR_TAIL_BODY (p,outlen(p)) [precond ~(L=255/\low<9)*)
-(*       holds: this is the not-mid-exit case] giving pc+318->pc+318 at p+1,    *)
-(*       then ENSURES_TRANS with IH at d' (272-(p+1)<=d' since 272-p<=SUC d').  *)
-(* GUARD-TAKEN exit stepping (the new ISA work): at pc+318, cmp eax,256;        *)
-(*   jae(Condition_NB) TAKEN when outlen>=256 -> JAE_TAKEN_GE-style fact on RAX *)
-(*   makes X86_VSTEPS resolve RIP->pc+406. Similarly cmp ecx,272 at pc+325.     *)
+(* STATUS: base case (p=272) VALIDATED interactively end-to-end. Count-exit    *)
+(* stepping confirmed: JAE_TAKEN_GE fact on RAX -> X86_VSTEPS(1--2) resolves    *)
+(* cmp eax,256 jae TAKEN -> pc+406. Inductive step (clean recursive via         *)
+(* SCALAR_TAIL_BODY + ENSURES_TRANS with IH, mid-byte terminal) under          *)
+(* construction. See eta4-scalar-tail-progress.md for the validated tactics.   *)
 (* ========================================================================= *)
 
-(* (proof under construction — see eta4-scalar-tail-progress.md for the exact
-   validated setup: SUB_LIST_BYTE_272 for p=272, ENSURES_INIT, case-splits,
-   SCALAR_TAIL_BODY + IH composition via ENSURES_TRANS in the clean recursive case.) *)
+let SCALAR_TAIL_RUN = prove
+ (`!d res buf table (inlist:byte list) pc (p:num) stackpointer.
+        272 - p <= d /\
+        LENGTH inlist = 272 /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val table,2048) /\
+        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table,2048) /\
+        p <= 272 /\
+        LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list) <= 256
+        ==> ensures x86
+             (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
+                  read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
+                  read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
+                  read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
+                  read RAX s = word(LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list)) /\
+                  read RCX s = word p /\
+                  read(memory :> bytes(res, 4 * LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list))) s =
+                    num_of_wordlist(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist)))
+             (\s. read RIP s = word(pc + LENGTH(BUTLAST mldsa_rej_uniform_eta4_tmc)) /\
+                  (let outlist = SUB_LIST(0,256) (REJ_SAMPLE_ETA4_BYTES inlist) in
+                   read RAX s = word(LENGTH outlist) /\
+                   read(memory :> bytes(res, 4 * LENGTH outlist)) s = num_of_wordlist outlist))
+             (MAYCHANGE [RIP; RAX; RCX; R8; R9; R10; R11] ,,
+              MAYCHANGE [ZMM0; ZMM1; ZMM2; ZMM3; ZMM4; ZMM5; ZMM6] ,,
+              MAYCHANGE [CF; PF; AF; ZF; SF; OF] ,,
+              MAYCHANGE [events] ,,
+              MAYCHANGE [memory :> bytes(res,1024)])`,
+  CHEAT_TAC);;
