@@ -69,3 +69,19 @@ let REJ_SAMPLE_ETA4_PREFIX_MONO = prove
    [MP_TAC(ISPECL [`inlist:byte list`;`a:num`;`b-a`;`0`] SUB_LIST_SPLIT) THEN
     ASM_SIMP_TAC[ADD_CLAUSES; ARITH_RULE `a <= b ==> a + (b - a) = b`];
     REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES_APPEND_LE]]);;
+
+(* For a CLEAN 16-byte block (niblen(16(i+1))<=248), all 3 internal mid-guard *)
+(* offsets (16i+4, 16i+8, 16i+12) also have niblen<=248 by monotonicity, so   *)
+(* the `cmp eax,248; ja scalar` mid-guards do NOT fire -> CLEAN_BODY is valid  *)
+(* for blocks before the exit block. (The exit block i=N-1 needs mid-exit      *)
+(* analysis since one guard fires there.)                                      *)
+let MIDGUARD_NOT_TAKEN_CLEAN = prove
+ (`!(inlist:byte list) i.
+     LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*(i+1)) inlist):int32 list) <= 248
+     ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+4) inlist):int32 list) <= 248 /\
+         LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+8) inlist):int32 list) <= 248 /\
+         LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+12) inlist):int32 list) <= 248`,
+  REPEAT STRIP_TAC THEN
+  FIRST_X_ASSUM(fun th -> MP_TAC th THEN
+    MATCH_MP_TAC(ARITH_RULE `a <= b ==> b <= 248 ==> a <= 248`)) THEN
+  MATCH_MP_TAC REJ_SAMPLE_ETA4_PREFIX_MONO THEN ARITH_TAC);;
