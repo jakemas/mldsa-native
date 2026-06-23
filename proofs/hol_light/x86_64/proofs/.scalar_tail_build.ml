@@ -230,3 +230,17 @@ let REJ_STEP_NONE = prove
   ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN
   SUBGOAL_THEN `REJ_SAMPLE_ETA4_BYTES [EL p (inlist:byte list)] = []` SUBST1_TAC THENL
    [MATCH_MP_TAC REJ_SAMPLE_ETA4_BYTES_1_REJECT_BOTH THEN ASM_REWRITE_TAC[]; REWRITE_TAC[APPEND_NIL]]);;
+
+(* Output-length step bounds for the WOP wrapper: per byte, outlen grows by 0..2. *)
+let OUTLEN_STEP_LE2 = prove
+ (`!(inlist:byte list) k. k < LENGTH inlist
+     ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,k+1) inlist):int32 list) <=
+         LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,k) inlist):int32 list) + 2`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`k:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN
+  ASM_REWRITE_TAC[] THEN ARITH_TAC);;
+let OUTLEN_STEP_GE = prove
+ (`!(inlist:byte list) k. k < LENGTH inlist
+     ==> LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,k) inlist):int32 list) <=
+         LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,k+1) inlist):int32 list)`,
+  REPEAT STRIP_TAC THEN MP_TAC(SPECL[`inlist:byte list`;`k:num`] LENGTH_REJ_SAMPLE_STEP_1) THEN
+  ASM_REWRITE_TAC[] THEN ARITH_TAC);;
