@@ -42,3 +42,17 @@
 (* rather than JA_NOT_TAKEN_LE. *)
 (* ========================================================================= *)
 Printf.printf "EXIT_BLOCK_PROGRESS: head guards validated (pc+56 -> pc+79); 4 sub-iters + per-guard exit branches remain. See comment.\n";;
+
+(* ⚠️ PERFORMANCE (2026-06-23): raw X86_VSTEPS_TAC over the SIMD gather is FAR  *)
+(* too slow -- 6 vector instrs (pc+79..pc+106: vpmovzxbw/vpand/vpshufb/...)     *)
+(* took ~286s. MUST use the specialized CLEAN_BODY vector tactics instead:      *)
+(* PREFIX_G_FULL_TAC (head+sub-iter1 -> s23) and SI2/3/4_INTEGRATED, which      *)
+(* REABBREV the vector intermediates (f0sub/f1bnd/chunk0/mask8/pshuf/tab) and   *)
+(* avoid the term blowup. The exit block should be proven by RE-RUNNING those   *)
+(* SAME tactics (they step pc+56 -> ... cleanly) but replacing the FINAL guard  *)
+(* resolution (SIk_RESOLVE, which proves the mid-guard NOT taken -> continue)   *)
+(* with a TAKEN resolution (JA_TAKEN_GT -> pc+318) at whichever sub-iter the    *)
+(* exit occurs, then SCALAR_TAIL_AT_P. Because the exit point is data-dependent *)
+(* (which guard fires), case-split per sub-iter: ASM_CASES niblen(q+4k)>248,    *)
+(* run SIk to its guard, then branch. Reuse PREFIX_G_FULL_TAC for the head +    *)
+(* sub-iter-1 gather (it's already optimized); do NOT raw-VSTEP the vectors.    *)
