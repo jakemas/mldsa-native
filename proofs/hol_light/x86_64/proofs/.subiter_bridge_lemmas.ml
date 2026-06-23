@@ -85,3 +85,26 @@ let MIDGUARD_NOT_TAKEN_CLEAN = prove
   FIRST_X_ASSUM(fun th -> MP_TAC th THEN
     MATCH_MP_TAC(ARITH_RULE `a <= b ==> b <= 248 ==> a <= 248`)) THEN
   MATCH_MP_TAC REJ_SAMPLE_ETA4_PREFIX_MONO THEN ARITH_TAC);;
+
+(* JA (Condition_NBE, unsigned >) TAKEN when a>k: companion of s2n-bignum's     *)
+(* JA_NOT_TAKEN_LE. Negates the not-taken disjunction. Used in the exit-block    *)
+(* proof to resolve the mid-guards `cmp eax,248; ja scalar` when the running     *)
+(* count exceeds 248 (the guard fires -> exit to pc+318).                        *)
+let JA_TAKEN_GT = prove
+ (`!a k:num. k < a /\ a < 2 EXP 32
+     ==> ~(~(&(val(word_zx(word a:int64):int32)):int - &k =
+             &(val(word_sub(word_zx(word a:int64):int32) (word k):int32))) \/
+           val(word_sub(word_zx(word a:int64):int32) (word k):int32) = 0)`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  SUBGOAL_THEN `val(word_zx(word a:int64):int32) = a` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_ZX_64_32 THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(word_sub (word_zx(word a:int64):int32) (word k:int32)) = a - k` ASSUME_TAC THENL
+   [REWRITE_TAC[VAL_WORD_SUB_CASES; DIMINDEX_32] THEN ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN `val(word k:int32) = k` SUBST1_TAC THENL
+     [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_32] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+    COND_CASES_TAC THENL [REFL_TAC; REPEAT(POP_ASSUM MP_TAC) THEN ARITH_TAC]; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `(a - k = 0) <=> F` SUBST1_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  REWRITE_TAC[] THEN
+  MP_TAC(SPECL[`k:num`;`a:num`] INT_OF_NUM_SUB) THEN ANTS_TAC THENL
+   [ASM_ARITH_TAC; DISCH_THEN(SUBST1_TAC) THEN REWRITE_TAC[]]);;
