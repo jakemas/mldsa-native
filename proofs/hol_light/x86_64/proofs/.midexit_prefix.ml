@@ -15,6 +15,12 @@ let PREFIX_TO_S21_TAC : tactic =
   ABBREV_TAC `chunk0 = read(memory:>bytes128(word_add buf (word(16*i)))) s0` THEN DISCH_TAC THEN
   SUBGOAL_THEN `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list) <= 248` ASSUME_TAC THENL
    [FIRST [FIRST_ASSUM ACCEPT_TAC;
+           (* mid-exit: derive from a later sample bound niblen(16i+4k)<=248 via prefix monotonicity *)
+           (FIRST_X_ASSUM(fun th -> match concl th with
+              Comb(Comb(Const("<=",_),Comb(Const("LENGTH",_),Comb(Const("REJ_SAMPLE_ETA4_BYTES",_),_))),k) when k=`248`
+                -> MP_TAC th | _ -> NO_TAC) THEN
+            MATCH_MP_TAC(ARITH_RULE `a <= b ==> b <= 248 ==> a <= 248`) THEN
+            MATCH_MP_TAC REJ_SAMPLE_ETA4_PREFIX_MONO THEN ARITH_TAC);
            (REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
             TRANS_TAC LE_TRANS `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * (i+1)) inlist):int16 list)` THEN
             ASM_REWRITE_TAC[] THEN MATCH_MP_TAC NIBLEN_PREFIX_MONO THEN ARITH_TAC)]; ALL_TAC] THEN
