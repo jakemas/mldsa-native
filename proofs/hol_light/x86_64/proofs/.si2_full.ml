@@ -48,9 +48,9 @@ W(fun (asl,w) ->
   (* fold explicit block1 -> SUB_LIST(16i+4,4) via blk1_eq (GSYM) *)
   let pop_len2 = REWRITE_RULE[GSYM blk1_eq] (TRANS popcnt2 (MP bsum2_raw mb2)) in
   (* bound: outlen0 + niblen(block0) + block1len <= 248 *)
-  let i116 = find_a (fun th -> concl th = `16 * (i + 1) <= 256`) in
+  let i116 = find_a (fun th -> concl th = `16 * (i + 1) <= 272`) in
   let nibbnd = find_a (fun th -> concl th = `LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST (0,16 * (i + 1)) inlist):int16 list) <= 248`) in
-  let a1 = MP (MP (ARITH_RULE `16*(i+1)<=256 ==> (LENGTH(inlist:byte list)=272 ==> 16*(i+1)<=LENGTH inlist)`) i116) leninl in
+  let a1 = MP (MP (ARITH_RULE `16*(i+1)<=272 ==> (LENGTH(inlist:byte list)=272 ==> 16*(i+1)<=LENGTH inlist)`) i116) leninl in
   let bnd2 = MP (ISPECL[`inlist:byte list`;`i:num`] SUBITER_OUTLEN_BOUND_2) (CONJ a1 nibbnd) in
   (* acc1 = outlen0 + niblen(block0); outlen0 = LENGTH(REJ_SAMPLE...(SUB_LIST(0,16i))). Rewrite bnd2's
      first two terms into acc1. *)

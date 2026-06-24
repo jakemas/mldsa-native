@@ -48,10 +48,10 @@ let SI2_INTEGRATED : tactic =
     let spec = ISPECL [g2; m; `word_subword (chunk0:int128) (32,8):byte`; `word_subword (chunk0:int128) (40,8):byte`; `word_subword (chunk0:int128) (48,8):byte`; `word_subword (chunk0:int128) (56,8):byte`] SUBITER_STORE_SPEC in
     let rej_store = REWRITE_RULE[MP spec (CONJ mthm2 bg2)] res_th0 in
     let leninl = find (fun th -> concl th = `LENGTH(inlist:byte list)=272`) asms in
-    let i116 = find (fun th -> concl th = `16 * (i+1) <= 256`) asms in
+    let i116 = find (fun th -> concl th = `16 * (i + 1) <= 272`) asms in
     let blk16 = find (fun th -> is_eq(concl th) && hasC "SUB_LIST" th && (try length(dest_list(rand(concl th)))=16 with _->false)) asms in
     let bb = MP (ISPECL [`inlist:byte list`;`i:num`;`chunk0:int128`] SUBITER_BLOCK_BYTES)
-                (CONJ (REWRITE_RULE[GSYM leninl] (MP (ARITH_RULE `16*(i+1)<=256 ==> 16*i+16<=272`) i116)) blk16) in
+                (CONJ (REWRITE_RULE[GSYM leninl] (MP (ARITH_RULE `16*(i+1)<=272 ==> 16*i+16<=272`) i116)) blk16) in
     let blk1_eq = el 1 (CONJUNCTS bb) in
     let lr0 = MP (ISPECL [m;`word_subword (chunk0:int128) (32,8):byte`;`word_subword (chunk0:int128) (40,8):byte`;`word_subword (chunk0:int128) (48,8):byte`;`word_subword (chunk0:int128) (56,8):byte`] LEN_RECONCILE_GEN) mthm2 in
     let lr = REWRITE_RULE[GSYM blk1_eq] lr0 in

@@ -40,7 +40,7 @@ let SI1_FOLD_V2 : tactic =
            Comb(Comb(Const("=",_),Comb(Const("LENGTH",_),Var("inlist",_))),_) -> true | _ -> false) asms in
       let i116 = find (fun th -> match concl th with
            Comb(Comb(Const("<=",_),Comb(Comb(Const("*",_),_),Comb(Comb(Const("+",_),Var("i",_)),_))),_) -> true | _ -> false) asms in
-      let lenle = REWRITE_RULE[GSYM leninl] (MP (ARITH_RULE `16*(i+1) <= 256 ==> 16*i+16 <= 272`) i116) in
+      let lenle = REWRITE_RULE[GSYM leninl] (MP (ARITH_RULE `16*(i+1) <= 272 ==> 16*i+16 <= 272`) i116) in
       let lr = MP (ISPECL [m; `chunk0:int128`] LEN_RECONCILE) mthm in
       let bb = MP (ISPECL [`inlist:byte list`; `i:num`; `chunk0:int128`] SUBITER_BLOCK_BYTES) (CONJ lenle blk16) in
       let blk_bytes = CONJUNCT1 bb in

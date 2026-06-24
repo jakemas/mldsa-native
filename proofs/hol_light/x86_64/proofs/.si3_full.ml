@@ -21,9 +21,9 @@ let SI3_PRE : tactic =
     let asms = map snd asl in
     let find_a p = find p asms in
     let leninl = find_a (fun th -> concl th = `LENGTH(inlist:byte list) = 272`) in
-    let i116 = find_a (fun th -> concl th = `16 * (i + 1) <= 256`) in
+    let i116 = find_a (fun th -> concl th = `16 * (i + 1) <= 272`) in
     let nibbnd = find_a (fun th -> concl th = `LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST (0,16 * (i + 1)) inlist):int16 list) <= 248`) in
-    let a1 = MP (MP (ARITH_RULE `16*(i+1)<=256 ==> (LENGTH(inlist:byte list)=272 ==> 16*(i+1)<=LENGTH inlist)`) i116) leninl in
+    let a1 = MP (MP (ARITH_RULE `16*(i+1)<=272 ==> (LENGTH(inlist:byte list)=272 ==> 16*(i+1)<=LENGTH inlist)`) i116) leninl in
     let bnd3 = MP (ISPECL[`inlist:byte list`;`i:num`] SUBITER_OUTLEN_BOUND_3) (CONJ a1 nibbnd) in
     let outlen0_def = find_a (fun th -> match concl th with
        Comb(Comb(Const("=",_),Comb(Const("LENGTH",_),_)),Var("outlen0",_)) -> true | _ -> false) in
