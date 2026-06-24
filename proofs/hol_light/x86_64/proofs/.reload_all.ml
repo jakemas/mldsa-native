@@ -66,5 +66,12 @@ L ".scalar_tail_run.ml";;
 
 (* 6. bridge lemmas + scaffold *)
 L ".subiter_bridge_lemmas.ml";;
+L ".correct_scaffold.ml";;
+
+(* 7. exit-block assets *)
+L ".exit_offset.ml";;        (* EXIT_OFFSET (cheat-free, offset arm) *)
+L ".exit_block.ml";;         (* OFFSET_ARM_TAC + EXIT_OFFSET_NOLET *)
+L ".midexit_prefix.ml";;     (* PREFIX_TO_S21_TAC *)
+L ".midexit_subiter1.ml";;   (* MID_EXIT_SUBITER1 (cheat-free, mid-exit case-1) *)
 
 logmsg "RELOAD COMPLETE";;
