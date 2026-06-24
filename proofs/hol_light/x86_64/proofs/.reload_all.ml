@@ -72,6 +72,13 @@ L ".correct_scaffold.ml";;
 L ".exit_offset.ml";;        (* EXIT_OFFSET (cheat-free, offset arm) *)
 L ".exit_block.ml";;         (* OFFSET_ARM_TAC + EXIT_OFFSET_NOLET *)
 L ".midexit_prefix.ml";;     (* PREFIX_TO_S21_TAC *)
-L ".midexit_subiter1.ml";;   (* MID_EXIT_SUBITER1 (cheat-free, mid-exit case-1) *)
+L ".mg1_nt.ml";;             (* MG1_NT_TAC *)
+L ".mg2_nt.ml";;             (* MG2_NT_TAC *)
+L ".mg3_nt.ml";;             (* MG3_NT_TAC *)
+L ".si4_body4.ml";;          (* SI4_BODY4_TAC *)
+L ".midexit_subiter1.ml";;   (* MID_EXIT_SUBITER1 + RCX4_COLLAPSE (mid-exit case-1) *)
+L ".midexit_subiter2.ml";;   (* MID_EXIT_SUBITER2 + SI2_BODY_TAC + SI2_MG2_TAKEN_TAC (case-2) *)
+L ".midexit_subiter3.ml";;   (* MID_EXIT_SUBITER3 + SI3_BODY3_TAC + SI3_MG3_TAKEN_TAC (case-3) *)
+L ".midexit_case4.ml";;      (* MID_EXIT_CASE4 (case-4) *)
 
 logmsg "RELOAD COMPLETE";;
