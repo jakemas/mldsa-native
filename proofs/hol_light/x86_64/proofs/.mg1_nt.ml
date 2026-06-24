@@ -88,4 +88,12 @@ let MG1_NT_TAC : tactic =
       FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 167`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[GSYM(snd blk0)] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
-    ALL_TAC];;
+    ALL_TAC] THEN
+  (* fold RAX s23 read into clean word(acc1) form (mirrors PREFIX_G_FULL lines 426-431) so the
+     subsequent SI2 store's memsafe can bound val(RAX)=acc1<=248. *)
+  W(fun (asl,w) ->
+    let pl = find (fun (_,th) -> match concl th with
+        Comb(Comb(Const("=",_),Comb(Const("word_popcount",_),_)),_) -> true | _ -> false) asl in
+    let rr = find (fun (_,th) -> match concl th with
+        Comb(Comb(Const("=",_),Comb(Const("word_zx",_),Comb(Comb(Const("word_add",_),_),_))),_) -> true | _ -> false) asl in
+    RULE_ASSUM_TAC(REWRITE_RULE[snd pl]) THEN RULE_ASSUM_TAC(REWRITE_RULE[snd rr]));;
