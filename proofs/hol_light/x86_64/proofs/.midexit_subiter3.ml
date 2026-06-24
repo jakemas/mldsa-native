@@ -13,7 +13,13 @@ let SI3_BODY3_TAC : tactic =
    [(* after ABBREV acc2, the bridge2 (acc1+niblen(16i+4,4)=niblen_sample(16i+8)) folds to
        (acc2 = niblen_sample(16i+8)); SUBST it then ACCEPT niblen(16i+8)<=248. *)
     FIRST_X_ASSUM(fun th -> if (match concl th with Comb(Comb(Const("=",_),Var("acc2",_)),Comb(Const("LENGTH",_),Comb(Const("REJ_SAMPLE_ETA4_BYTES",_),_)))->true|_->false) then SUBST1_TAC th else NO_TAC) THEN
-    FIRST_ASSUM ACCEPT_TAC; ALL_TAC] THEN
+    FIRST [FIRST_ASSUM ACCEPT_TAC;
+           (* case-4: niblen(16i+8)<=248 from niblen(16i+12)<=248 by monotonicity *)
+           (FIRST_X_ASSUM(fun th -> match concl th with
+              Comb(Comb(Const("<=",_),Comb(Const("LENGTH",_),Comb(Const("REJ_SAMPLE_ETA4_BYTES",_),_))),k) when k=`248`
+                -> MP_TAC th | _ -> NO_TAC) THEN
+            MATCH_MP_TAC(ARITH_RULE `a <= b ==> b <= 248 ==> a <= 248`) THEN
+            MATCH_MP_TAC REJ_SAMPLE_ETA4_PREFIX_MONO THEN ARITH_TAC)]; ALL_TAC] THEN
   VAL_INT64_TAC `acc2:num` THEN
   ACC2_IDENT_TAC THEN
   RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+8) inlist):int32 list) = acc2`]) THEN

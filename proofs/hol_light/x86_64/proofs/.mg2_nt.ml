@@ -47,7 +47,13 @@ let MG2_NT_TAC : tactic =
   (* bnd: acc1 + block1len <= 248 (= niblen(16i+8)<=248 direct hyp) *)
   SUBGOAL_THEN `acc1 + LENGTH(REJ_NIBBLES_ETA4 (SUB_LIST(16*i+4,4) inlist):int16 list) <= 248` ASSUME_TAC THENL
    [FIRST_X_ASSUM(fun th -> if (match concl th with Comb(Comb(Const("=",_),Comb(Comb(Const("+",_),Var("acc1",_)),_)),_)->true|_->false) then SUBST1_TAC th else NO_TAC) THEN
-    FIRST_ASSUM ACCEPT_TAC; ALL_TAC] THEN
+    FIRST [FIRST_ASSUM ACCEPT_TAC;
+           (* case-4: niblen(16i+8)<=248 follows from niblen(16i+12)<=248 by monotonicity *)
+           (FIRST_X_ASSUM(fun th -> match concl th with
+              Comb(Comb(Const("<=",_),Comb(Const("LENGTH",_),Comb(Const("REJ_SAMPLE_ETA4_BYTES",_),_))),k) when k=`248`
+                -> MP_TAC th | _ -> NO_TAC) THEN
+            MATCH_MP_TAC(ARITH_RULE `a <= b ==> b <= 248 ==> a <= 248`) THEN
+            MATCH_MP_TAC REJ_SAMPLE_ETA4_PREFIX_MONO THEN ARITH_TAC)]; ALL_TAC] THEN
   W(fun (asl,w) ->
     let block1len = `LENGTH(REJ_NIBBLES_ETA4 (SUB_LIST(16*i+4,4) inlist):int16 list)` in
     let sum = mk_binop `(+):num->num->num` `acc1:num` block1len in
