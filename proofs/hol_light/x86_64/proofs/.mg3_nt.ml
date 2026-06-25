@@ -1,4 +1,4 @@
-(* MG3_NT_TAC: from s45, mid-guard-3 NOT-taken from direct niblen(16i+12)<=248 -> RIP s47=pc+272,
+(* MG3_NT_TAC: from s45, mid-guard-3 NOT-taken from direct niblen(16i+12)<=248 -> RIP s47=pc+268,
    with RAX-fold so the SI4 store memsafe at s53 discharges. Clone of SI3_MG3_TAKEN w/ JA_NOT_TAKEN_LE. *)
 let MG3_NT_TAC : tactic =
   W(fun (asl,w) ->
@@ -64,7 +64,7 @@ let MG3_NT_TAC : tactic =
     let ja = MP (ISPECL [sum; `248`] JA_NOT_TAKEN_LE) (CONJ bnd (ARITH_RULE `248 < 2 EXP 32`)) in
     ASSUME_TAC pop_len3 THEN ASSUME_TAC rax_red0 THEN ASSUME_TAC ja) THEN
   X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (46--47) THEN
-  SUBGOAL_THEN `read RIP s47 = word (pc + 272):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s47 = word (pc + 268):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let asms = map snd asl in
       let find_a p = find p asms in
@@ -81,7 +81,7 @@ let MG3_NT_TAC : tactic =
       let ja = find_a (fun th -> is_disj(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th) &&
           can(find_term(fun u->u=`acc2:num`))(concl th)) in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 272`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 268`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[GSYM blk2_eq] THEN REWRITE_TAC[rax_red0] THEN
       REWRITE_TAC[ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC] THEN

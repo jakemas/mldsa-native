@@ -1,12 +1,12 @@
 (* MIDEXIT_ARM_TAC: closes the scaffold's MID-EXIT arm (the goal after CORRECT_SCAFFOLD_TAC +
-   ASM_CASES niblen(16N)<=248, FALSE branch). Pre @ pc+56/pos16(N-1), niblen(16(N-1))<=248,
+   ASM_CASES niblen(16N)<=248, FALSE branch). Pre @ pc+52/pos16(N-1), niblen(16(N-1))<=248,
    niblen(16N)>248. Case-splits on the first crossover p in {16(N-1)+4,+8,+12,16N} and dispatches
-   MID_EXIT_SUBITER{1,2,3}@(N-1) / MID_EXIT_CASE4@(N-1), then SCALAR_TAIL_AT_P@p -> pc+406.
+   MID_EXIT_SUBITER{1,2,3}@(N-1) / MID_EXIT_CASE4@(N-1), then SCALAR_TAIL_AT_P@p -> pc+402.
    Load after the 4 MID_EXIT lemmas, SCALAR_TAIL_AT_P, OUTLEN0_LE_256_FROM_SUBITER. *)
 
 let AT_P_NOLET = CONV_RULE(TOP_DEPTH_CONV let_CONV) MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_AT_P;;
 
-(* dispatch one crossover case: midthm @ i:=N-1 reaches pc+318@pexpr; prevbound = niblen(pexpr-4)<=248
+(* dispatch one crossover case: midthm @ i:=N-1 reaches pc+314@pexpr; prevbound = niblen(pexpr-4)<=248
    (in context) used to derive niblen(pexpr)<=256; then SCALAR_TAIL_AT_P@pexpr. *)
 let MIDEXIT_DISPATCH (midthm:thm) (pexpr:term) (prevpos:term) : tactic =
   let qpost = vsubst [`N-1`,`i:num`] (rand(rator(snd(dest_imp(snd(strip_forall(concl midthm))))))) in

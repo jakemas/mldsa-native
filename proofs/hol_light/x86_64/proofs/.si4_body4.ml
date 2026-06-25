@@ -1,5 +1,5 @@
 (* SI4_BODY4_TAC: SI4_INTEGRATED body with forked SI4_PRE (acc3<=248 from direct niblen(16i+12)<=248).
-   From s47/pc+272 (after MG3_NT) to s57/pc+56 at pos16(i+1) (back-edge), store folded to 16(i+1). *)
+   From s47/pc+268 (after MG3_NT) to s57/pc+52 at pos16(i+1) (back-edge), store folded to 16(i+1). *)
 let SI4_BODY4_TAC : tactic =
   ABBREV_TAC `acc3 = acc2 + LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST (16*i+8,4) inlist):int16 list)` THEN
   REABBREV_TAC `mask8d = read R8 s47` THEN

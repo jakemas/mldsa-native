@@ -1,4 +1,4 @@
-(* SI3_MG3_TAKEN_TAC: from s45, resolve mid-guard-3 TAKEN (niblen(16i+12)>248) -> RIP s47=pc+318. *)
+(* SI3_MG3_TAKEN_TAC: from s45, resolve mid-guard-3 TAKEN (niblen(16i+12)>248) -> RIP s47=pc+314. *)
 let SI3_MG3_TAKEN_TAC : tactic =
   W(fun (asl,w) ->
     let asms = map snd asl in
@@ -63,7 +63,7 @@ let SI3_MG3_TAKEN_TAC : tactic =
     let ja_taken = MP (ISPECL [sum; `248`] JA_TAKEN_GT) (CONJ gt248 lt32) in
     ASSUME_TAC pop_len3 THEN ASSUME_TAC rax_red0 THEN ASSUME_TAC ja_taken) THEN
   X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (46--47) THEN
-  SUBGOAL_THEN `read RIP s47 = word (pc + 318):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s47 = word (pc + 314):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let asms = map snd asl in
       let find_a p = find p asms in
@@ -80,7 +80,7 @@ let SI3_MG3_TAKEN_TAC : tactic =
       let ja = find_a (fun th -> is_neg(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th) &&
           can(find_term(fun u->u=`acc2:num`))(concl th)) in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 318`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[GSYM blk2_eq] THEN REWRITE_TAC[rax_red0] THEN
       REWRITE_TAC[ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC];;

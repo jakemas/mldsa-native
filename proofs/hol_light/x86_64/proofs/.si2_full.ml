@@ -75,7 +75,7 @@ W(fun (asl,w) ->
 
 let SI2_RESOLVE : tactic =
   X86_STEPS_TAC EXEC (34--35) THEN
-  SUBGOAL_THEN `read RIP s35 = word (pc + 219):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s35 = word (pc + 215):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let asms = map snd asl in
       let pop_len2_old = find (fun th -> match concl th with

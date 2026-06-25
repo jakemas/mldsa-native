@@ -1,5 +1,5 @@
 (* SI3_INTEGRATED: full sub-iter-3 (gather + store-fold + counter + mid-guard), cheat-free.
-   From s35 (RIP=pc+219, running store SUB_LIST(0,16i+8)) to s47 (RIP=pc+272), store folded to
+   From s35 (RIP=pc+215, running store SUB_LIST(0,16i+8)) to s47 (RIP=pc+268), store folded to
    SUB_LIST(0,16i+12). Deps: .si3_full (SI3_PRE/GATHER/MG/RESOLVE), .si3_fold_pieces, .si2_fold_complete
    (LEN_RECONCILE_GEN), .pf_target_proof. g3 = hi 128 lane (no shift) so gthm=bg3 directly. *)
 let SI3_INTEGRATED : tactic =

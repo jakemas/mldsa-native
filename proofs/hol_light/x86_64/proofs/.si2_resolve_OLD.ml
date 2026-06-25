@@ -1,6 +1,6 @@
 let SI2_RESOLVE : tactic =
   X86_STEPS_TAC EXEC (34--35) THEN
-  SUBGOAL_THEN `read RIP s35 = word (pc + 219):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s35 = word (pc + 215):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let asms = map snd asl in
       let blk1 = find (fun th -> match concl th with
@@ -15,7 +15,7 @@ let SI2_RESOLVE : tactic =
       let ja = find (fun th -> is_disj(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th) &&
           can(find_term(fun u->u=`acc1:num`))(concl th)) asms in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 219`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 215`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[pop_len2] THEN REWRITE_TAC[rax_red0] THEN
       REWRITE_TAC[ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC] THEN

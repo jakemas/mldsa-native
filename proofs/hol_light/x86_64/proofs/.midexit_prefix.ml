@@ -32,16 +32,16 @@ let PREFIX_TO_S21_TAC : tactic =
   MP_TAC(SPECL [`16*i`;`256`] JA_NOT_TAKEN_LE) THEN ASM_REWRITE_TAC[] THEN DISCH_TAC THEN
   VAL_INT64_TAC `outlen0:num` THEN
   X86_STEPS_TAC EXEC (1--2) THEN
-  SUBGOAL_THEN `read RIP s2 = word(pc + 67):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s2 = word(pc + 63):int64` ASSUME_TAC THENL
    [FIRST_X_ASSUM(fun th -> if is_imp(concl th) && can(find_term((=)`&248:int`))(concl th)
                            then ASSUME_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC) THEN
-    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 318`))(concl th) then MP_TAC th else NO_TAC) THEN
+    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
     ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC; ALL_TAC] THEN
   X86_STEPS_TAC EXEC (3--4) THEN
-  SUBGOAL_THEN `read RIP s4 = word(pc + 79):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s4 = word(pc + 75):int64` ASSUME_TAC THENL
    [FIRST_X_ASSUM(fun th -> if is_imp(concl th) && can(find_term((=)`&256:int`))(concl th)
                            then ASSUME_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC) THEN
-    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 318`))(concl th) then MP_TAC th else NO_TAC) THEN
+    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
     ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC; ALL_TAC] THEN
   X86_VSTEPS_TAC EXEC (5--5) THEN
   SUBGOAL_THEN `val(word(16*i):int64) = 16*i` ASSUME_TAC THENL

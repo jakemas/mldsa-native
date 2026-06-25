@@ -1,11 +1,11 @@
-(* MG1_NT_TAC: mid-exit lead-in helper. From s21 (pc+156, sub-iter-1 gather done),
+(* MG1_NT_TAC: mid-exit lead-in helper. From s21 (pc+152, sub-iter-1 gather done),
    resolve mid-guard-1 NOT-taken from the DIRECT bound niblen(16i+4)<=248 (vs CLEAN's
-   derivation from the final niblen(16(i+1))<=248). Reaches RIP s23=pc+167, leaving
+   derivation from the final niblen(16(i+1))<=248). Reaches RIP s23=pc+163, leaving
    pop_len/bridge/bnd/rax_red0 for the subsequent SI1_FOLD_V2. Used by mid-exit cases 2/3
    (clean sub-iter 1 then later mid-guard taken). Load after .midexit_prefix + CLEAN_BODY chain.
-   VALIDATED: composes after PREFIX_TO_S21_TAC on midexit2_tm to reach pc+167 + SI1_FOLD_V2 OK. *)
-(* MG1_NT_TAC: from s21 (pc+156, sub-iter-1 gather done, RAX=popcount-accumulate),
-   resolve mid-guard-1 NOT-taken (niblen(16i+4)<=248 direct hyp) -> RIP s23 = pc+167.
+   VALIDATED: composes after PREFIX_TO_S21_TAC on midexit2_tm to reach pc+163 + SI1_FOLD_V2 OK. *)
+(* MG1_NT_TAC: from s21 (pc+152, sub-iter-1 gather done, RAX=popcount-accumulate),
+   resolve mid-guard-1 NOT-taken (niblen(16i+4)<=248 direct hyp) -> RIP s23 = pc+163.
    Assumes pop_len-style facts derivable; mirrors PREFIX_G_FULL tail but bound direct.
    Leaves pop_len, bridge, rax_red0 ASSUMEd for the subsequent SI1_FOLD_V2. *)
 let MG1_NT_TAC : tactic =
@@ -81,7 +81,7 @@ let MG1_NT_TAC : tactic =
     let ja = MP (ISPECL[sum; `248`] JA_NOT_TAKEN_LE) (CONJ bnd (ARITH_RULE `248 < 2 EXP 32`)) in
     ASSUME_TAC pop_len THEN ASSUME_TAC bnd THEN ASSUME_TAC rax_red0 THEN ASSUME_TAC ja) THEN
   X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (22--23) THEN
-  SUBGOAL_THEN `read RIP s23 = word (pc + 167):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s23 = word (pc + 163):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let blk0 = find (fun (_,th) -> match concl th with
           Comb(Comb(Const("=",_),l),_) -> (try let h,args=strip_comb l in fst(dest_const h)="SUB_LIST" &&
@@ -91,7 +91,7 @@ let MG1_NT_TAC : tactic =
       let ja = find (fun (_,th) -> is_disj(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th) &&
           can(find_term(fun u->u=`248`))(concl th)) asl in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 167`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 163`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[GSYM(snd blk0)] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC] THEN

@@ -3,7 +3,7 @@
 (* Splits on niblen(SUB(0,16N))<=248:                                          *)
 (*  - OFFSET arm (<=248): forces 16N=272 (N=17), apply EXIT_OFFSET.            *)
 (*  - MID-EXIT arm (>248): a cmp eax,248;ja mid-guard fires inside the i=N-1    *)
-(*    block at the first sub-iter offset p where niblen(p)>248 -> pc+318@p,     *)
+(*    block at the first sub-iter offset p where niblen(p)>248 -> pc+314@p,     *)
 (*    then SCALAR_TAIL_AT_P@p.                                                  *)
 (* Load after: full CLEAN_BODY chain, CLEAN_BLOCK, .exit_offset (EXIT_OFFSET),  *)
 (* .subiter_bridge_lemmas, .scalar_tail_run (AT_P), .correct_scaffold.          *)

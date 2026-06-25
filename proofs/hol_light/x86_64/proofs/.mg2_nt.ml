@@ -1,5 +1,5 @@
-(* MG2_NT_TAC: from s33, resolve mid-guard-2 NOT-taken (niblen(16i+8)<=248 direct) -> RIP s35=pc+219.
-   = SI2_MG2_TAKEN's pop_len2/bridge2 build but JA_NOT_TAKEN_LE + RIP pc+219, ending with RAX-fold
+(* MG2_NT_TAC: from s33, resolve mid-guard-2 NOT-taken (niblen(16i+8)<=248 direct) -> RIP s35=pc+215.
+   = SI2_MG2_TAKEN's pop_len2/bridge2 build but JA_NOT_TAKEN_LE + RIP pc+215, ending with RAX-fold
    so the SI3 store memsafe at s41 discharges. *)
 let MG2_NT_TAC : tactic =
   W(fun (asl,w) ->
@@ -65,7 +65,7 @@ let MG2_NT_TAC : tactic =
     let ja = MP (ISPECL [sum; `248`] JA_NOT_TAKEN_LE) (CONJ bnd (ARITH_RULE `248 < 2 EXP 32`)) in
     ASSUME_TAC pop_len2 THEN ASSUME_TAC bnd THEN ASSUME_TAC rax_red0 THEN ASSUME_TAC ja) THEN
   X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (34--35) THEN
-  SUBGOAL_THEN `read RIP s35 = word (pc + 219):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s35 = word (pc + 215):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let pop_len2_old = find (fun (_,th) -> match concl th with
           Comb(Comb(Const("=",_),Comb(Const("word_popcount",_),_)),_) -> true | _ -> false) asl in
@@ -76,7 +76,7 @@ let MG2_NT_TAC : tactic =
       let ja = find (fun (_,th) -> is_disj(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th) &&
           can(find_term(fun u->u=`acc1:num`))(concl th)) asl in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 219`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 215`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[pop_len2_typed] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC] THEN

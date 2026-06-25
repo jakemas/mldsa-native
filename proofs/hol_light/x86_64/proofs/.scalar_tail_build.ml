@@ -31,7 +31,7 @@ let READ_1BYTE_EL = prove
 (* jae(Condition_NB) fall-through: when a<k the unsigned >= jump is NOT taken.
    The model's flag condition is INT-typed (int_of_num &), NOT real — matching
    it requires the :int annotation (the classic invisible-type trap). Resolves
-   the scalar-tail guards at pc+323 (256), pc+331 (272), pc+373/pc+387 (256). *)
+   the scalar-tail guards at pc+319 (256), pc+327 (272), pc+369/pc+383 (256). *)
 let JAE_NOT_TAKEN_LT = prove
  (`!a k:num. a < k /\ k < 2 EXP 32
      ==> ~(&(val(word_zx(word a:int64):int32)):int - &k =
@@ -90,7 +90,7 @@ let RESOLVE_RIP_FAST =
     ASSUME_TAC resolved);;
 
 (* ======================================================================== *)
-(* Per-byte scalar-tail body lemma: one trip pc+318 -> pc+318, consuming    *)
+(* Per-byte scalar-tail body lemma: one trip pc+314 -> pc+314, consuming    *)
 (* input byte at position p, extending output by REJ_SAMPLE_ETA4_BYTES[b].   *)
 (* Entry generalized to arbitrary p so the wrapper can iterate; the          *)
 (* ~(L=255 /\ low<9) hypothesis rules out the mid-byte exit (handled by the  *)

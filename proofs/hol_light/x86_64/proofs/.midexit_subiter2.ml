@@ -1,10 +1,10 @@
-(* MID_EXIT_SUBITER2: sub-iter-2 mid-guard fires TAKEN -> pc+318 at pos 16i+8.
-   Entry pc+56/pos=16i (q56-style), niblen(16i+4)<=248 (mg1 not taken), niblen(16i+8)>248
-   (mg2 taken), 16(i+1)<=272. Reaches pc+318 with RCX=16i+8, RAX=niblen(16i+8),
+(* MID_EXIT_SUBITER2: sub-iter-2 mid-guard fires TAKEN -> pc+314 at pos 16i+8.
+   Entry pc+52/pos=16i (q56-style), niblen(16i+4)<=248 (mg1 not taken), niblen(16i+8)>248
+   (mg2 taken), 16(i+1)<=272. Reaches pc+314 with RCX=16i+8, RAX=niblen(16i+8),
    store=REJ_SAMPLE(0,16i+8).
    Composes: prefix-monotonicity prelude (niblen(16i)<=248) + PREFIX_TO_S21 + MG1_NT (mg1 not
-   taken -> pc+167) + SI1_FOLD_V2 + purge leftover COND-RIP-s23 + SI2_BODY (gather/store/counter
-   to s33) + SI2_MG2_TAKEN (mg2 taken -> pc+318) + ENSURES_FINAL + RAX/RCX/guard discharge.
+   taken -> pc+163) + SI1_FOLD_V2 + purge leftover COND-RIP-s23 + SI2_BODY (gather/store/counter
+   to s33) + SI2_MG2_TAKEN (mg2 taken -> pc+314) + ENSURES_FINAL + RAX/RCX/guard discharge.
    Load after: full CLEAN_BODY chain, .midexit_prefix (PREFIX_TO_S21_TAC), .mg1_nt (MG1_NT_TAC),
    .subiter_bridge_lemmas, .midexit_subiter1 (RCX4_COLLAPSE). VALIDATED interactively 2026-06-24. *)
 
@@ -72,7 +72,7 @@ let SI2_BODY_TAC : tactic =
     ASSUME_TAC clean) THEN
   X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (30--33);;
 
-(* SI2_MG2_TAKEN_TAC: from s33, resolve mid-guard-2 TAKEN (niblen(16i+8)>248) -> RIP s35 = pc+318. *)
+(* SI2_MG2_TAKEN_TAC: from s33, resolve mid-guard-2 TAKEN (niblen(16i+8)>248) -> RIP s35 = pc+314. *)
 let SI2_MG2_TAKEN_TAC : tactic =
   W(fun (asl,w) ->
     let asms = map snd asl in
@@ -135,7 +135,7 @@ let SI2_MG2_TAKEN_TAC : tactic =
     let ja_taken = MP (ISPECL [sum; `248`] JA_TAKEN_GT) (CONJ gt248 lt32) in
     ASSUME_TAC pop_len2 THEN ASSUME_TAC rax_red0 THEN ASSUME_TAC ja_taken) THEN
   X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (34--35) THEN
-  SUBGOAL_THEN `read RIP s35 = word (pc + 318):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s35 = word (pc + 314):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let pop_len2_old = find (fun (_,th) -> match concl th with
           Comb(Comb(Const("=",_),Comb(Const("word_popcount",_),_)),_) -> true | _ -> false) asl in
@@ -146,7 +146,7 @@ let SI2_MG2_TAKEN_TAC : tactic =
       let ja = find (fun (_,th) -> is_neg(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th) &&
           can(find_term(fun u->u=`acc1:num`))(concl th)) asl in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 318`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[pop_len2_typed] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC];;
@@ -154,7 +154,7 @@ let SI2_MG2_TAKEN_TAC : tactic =
 let me2_pre = midexit1_pre;;
 let me2_post =
   `\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-       read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+       read RIP s = word(pc + 314) /\ read RSP s = stackpointer /\
        read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
        read(memory :> bytes(table,2048)) s = num_of_wordlist (mldsa_rej_uniform_table:byte list) /\
        read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -166,9 +166,9 @@ let me2_post =
 let midexit2_tm =
   list_mk_forall([`res:int64`;`buf:int64`;`table:int64`;`inlist:byte list`;`pc:num`;`i:num`;`stackpointer:int64`],
   mk_imp(list_mk_conj([`LENGTH (inlist:byte list) = 272`;
-    `nonoverlapping_modulo (2 EXP 64) (pc, 407) (val(res:int64),1024)`;
-    `nonoverlapping_modulo (2 EXP 64) (pc, 407) (val(buf:int64), 272)`;
-    `nonoverlapping_modulo (2 EXP 64) (pc, 407) (val(table:int64),2048)`;
+    `nonoverlapping_modulo (2 EXP 64) (pc, 403) (val(res:int64),1024)`;
+    `nonoverlapping_modulo (2 EXP 64) (pc, 403) (val(buf:int64), 272)`;
+    `nonoverlapping_modulo (2 EXP 64) (pc, 403) (val(table:int64),2048)`;
     `nonoverlapping_modulo (2 EXP 64) (val(res:int64),1024) (val(buf:int64), 272)`;
     `nonoverlapping_modulo (2 EXP 64) (val(res:int64),1024) (val(table:int64),2048)`;
     `16 * (i + 1) <= 272`;

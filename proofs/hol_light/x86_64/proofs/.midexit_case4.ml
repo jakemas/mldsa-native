@@ -1,8 +1,8 @@
 (* MID_EXIT_CASE4: all 4 sub-iters of the i=N-1-style block run clean (niblen(16i+4),16i+8,16i+12
-   <=248), then at the loop back-edge pc+56/pos16(i+1) the head-guard1 (cmp eax,248) fires TAKEN
-   since niblen(16(i+1))>248 -> pc+318 at pos16(i+1).
-   Entry pc+56/pos=16i; hyps niblen(16i+12)<=248 (=> niblen(16i+4),16i+8 <=248 by mono),
-   niblen(16(i+1))>248, 16(i+1)<=272. Reaches pc+318 with RCX=16(i+1), RAX=niblen(16(i+1)),
+   <=248), then at the loop back-edge pc+52/pos16(i+1) the head-guard1 (cmp eax,248) fires TAKEN
+   since niblen(16(i+1))>248 -> pc+314 at pos16(i+1).
+   Entry pc+52/pos=16i; hyps niblen(16i+12)<=248 (=> niblen(16i+4),16i+8 <=248 by mono),
+   niblen(16(i+1))>248, 16(i+1)<=272. Reaches pc+314 with RCX=16(i+1), RAX=niblen(16(i+1)),
    store=REJ_SAMPLE(0,16(i+1)).
    Composes: PREFIX_TO_S21 + MG1_NT + SI1_FOLD + purge + SI2_BODY + MG2_NT + purge + SI3_BODY3
    + MG3_NT + purge + SI4_BODY4 (back-edge s57) + RAX-fold + head-guard1 eax-TAKEN (s58-59) +
@@ -11,7 +11,7 @@
 
 let me4_post =
   `\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-       read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+       read RIP s = word(pc + 314) /\ read RSP s = stackpointer /\
        read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
        read(memory :> bytes(table,2048)) s = num_of_wordlist (mldsa_rej_uniform_table:byte list) /\
        read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -23,9 +23,9 @@ let me4_post =
 let midexit4_tm =
   list_mk_forall([`res:int64`;`buf:int64`;`table:int64`;`inlist:byte list`;`pc:num`;`i:num`;`stackpointer:int64`],
   mk_imp(list_mk_conj([`LENGTH (inlist:byte list) = 272`;
-    `nonoverlapping_modulo (2 EXP 64) (pc, 407) (val(res:int64),1024)`;
-    `nonoverlapping_modulo (2 EXP 64) (pc, 407) (val(buf:int64), 272)`;
-    `nonoverlapping_modulo (2 EXP 64) (pc, 407) (val(table:int64),2048)`;
+    `nonoverlapping_modulo (2 EXP 64) (pc, 403) (val(res:int64),1024)`;
+    `nonoverlapping_modulo (2 EXP 64) (pc, 403) (val(buf:int64), 272)`;
+    `nonoverlapping_modulo (2 EXP 64) (pc, 403) (val(table:int64),2048)`;
     `nonoverlapping_modulo (2 EXP 64) (val(res:int64),1024) (val(buf:int64), 272)`;
     `nonoverlapping_modulo (2 EXP 64) (val(res:int64),1024) (val(table:int64),2048)`;
     `16 * (i + 1) <= 272`;
@@ -108,7 +108,7 @@ let MID_EXIT_CASE4 = prove(midexit4_tm,
     let rr = find (fun (_,th) -> match concl th with Comb(Comb(Const("=",_),Comb(Const("word_zx",_),Comb(Comb(Const("word_add",_),_),_))),_) -> can(find_term(fun u->u=`acc3:num`))(concl th) | _ -> false) asl in
     let bridge4 = find (fun (_,th) -> match concl th with Comb(Comb(Const("=",_),Comb(Comb(Const("+",_),Var("acc3",_)),_)),Comb(Const("LENGTH",_),Comb(Const("REJ_SAMPLE_ETA4_BYTES",_),_)))->true|_->false) asl in
     RULE_ASSUM_TAC(REWRITE_RULE[snd pl4]) THEN RULE_ASSUM_TAC(REWRITE_RULE[snd rr]) THEN RULE_ASSUM_TAC(REWRITE_RULE[snd bridge4])) THEN
-  (* head-guard1 eax TAKEN -> pc+318 *)
+  (* head-guard1 eax TAKEN -> pc+314 *)
   SUBGOAL_THEN `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*(i+1)) inlist):int32 list) < 2 EXP 32` ASSUME_TAC THENL
    [UNDISCH_TAC `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*(i+1)) inlist):int32 list) <= 256` THEN ARITH_TAC; ALL_TAC] THEN
   W(fun (asl,w) ->

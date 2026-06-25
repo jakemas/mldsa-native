@@ -1,6 +1,6 @@
 (* Sub-iter-4 fold pieces. g4 = hi 128 lane >>64 = word_zx(word_zx(word_ushr(word_zx(word_zx(word_subword
    f0sub (128,128)))) 64)). mask8d (R8 ushr24), block3 = SUB_LIST(16i+12,4), lanes 24-31. BYTE3 (DIV 2^24).
-   NO mid-guard (sub-iter 4 ends jmp pc+56). *)
+   NO mid-guard (sub-iter 4 ends jmp pc+52). *)
 
 let DIVMOD16777216_SPLIT = prove
  (`!a b. a < 16777216 ==> (a + 16777216 * b) DIV 16777216 MOD 256 = b MOD 256`,

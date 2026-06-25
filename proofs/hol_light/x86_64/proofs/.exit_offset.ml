@@ -2,16 +2,16 @@
 let exit_offset_tm = `
   !res buf table (inlist:byte list) pc N stackpointer.
        LENGTH inlist = 272 /\
-       nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
-       nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
-       nonoverlapping_modulo (2 EXP 64) (pc, 407) (val table,2048) /\
+       nonoverlapping_modulo (2 EXP 64) (pc, 403) (val res,1024) /\
+       nonoverlapping_modulo (2 EXP 64) (pc, 403) (val buf, 272) /\
+       nonoverlapping_modulo (2 EXP 64) (pc, 403) (val table,2048) /\
        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
        nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table,2048) /\
        16 * N = 272 /\
        LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*N) inlist):int16 list) <= 248
        ==> ensures x86
             (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                 read RIP s = word(pc + 56) /\ read RSP s = stackpointer /\
+                 read RIP s = word(pc + 52) /\ read RSP s = stackpointer /\
                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                  read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
                  read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -29,9 +29,9 @@ let exit_offset_tm = `
             (MAYCHANGE [RIP; RAX; RCX; R8; R9; R10; R11] ,, MAYCHANGE [ZMM0; ZMM1; ZMM2; ZMM3; ZMM4; ZMM5; ZMM6] ,,
              MAYCHANGE [CF; PF; AF; ZF; SF; OF] ,, MAYCHANGE [events] ,, MAYCHANGE [memory :> bytes(res,1024)])`;;
 
-(* Q318: post-head-guard state at pc+318, pos=16N. *)
+(* Q318: post-head-guard state at pc+314, pos=16N. *)
 let q318 = `\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-      read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+      read RIP s = word(pc + 314) /\ read RSP s = stackpointer /\
       read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
       read(memory :> bytes(table,2048)) s = num_of_wordlist(mldsa_rej_uniform_table:byte list) /\
       read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -41,7 +41,7 @@ let q318 = `\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
         num_of_wordlist(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*N) inlist))`;;
 
 let q56 = `\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-      read RIP s = word(pc + 56) /\ read RSP s = stackpointer /\
+      read RIP s = word(pc + 52) /\ read RSP s = stackpointer /\
       read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
       read(memory :> bytes(table,2048)) s = num_of_wordlist(mldsa_rej_uniform_table:byte list) /\
       read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -60,8 +60,8 @@ let EXIT_OFFSET = prove(exit_offset_tm,
     FIRST_X_ASSUM(fun th -> if concl th = `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0,16*N) inlist):int16 list) <= 248` then ACCEPT_TAC th else NO_TAC); ALL_TAC] THEN
   MATCH_MP_TAC ENSURES_TRANS_SIMPLE THEN EXISTS_TAC q318 THEN
   CONJ_TAC THENL [MAYCHANGE_IDEMPOT_TAC; ALL_TAC] THEN CONJ_TAC THENL
-   [(* leg1: pc+56 -> Q318 : CLEAN_BLOCK@(N-1) [pc+56 pos16(N-1) -> pc+56 pos16N] then
-       head guard cmp eax,248 (not taken, niblen(16N)<=248) + cmp ecx,256 (TAKEN, 16N=272>256) -> pc+318. *)
+   [(* leg1: pc+52 -> Q318 : CLEAN_BLOCK@(N-1) [pc+52 pos16(N-1) -> pc+52 pos16N] then
+       head guard cmp eax,248 (not taken, niblen(16N)<=248) + cmp ecx,256 (TAKEN, 16N=272>256) -> pc+314. *)
     MATCH_MP_TAC ENSURES_TRANS_SIMPLE THEN EXISTS_TAC q56 THEN
     CONJ_TAC THENL [MAYCHANGE_IDEMPOT_TAC; ALL_TAC] THEN CONJ_TAC THENL
      [(* leg1a: CLEAN_BLOCK@(N-1), post pos=16N = q56 (modulo N-1+1 -> N). VALIDATED in-session.
@@ -74,10 +74,10 @@ let EXIT_OFFSET = prove(exit_offset_tm,
        [REPEAT CONJ_TAC THEN (FIRST [FIRST_ASSUM ACCEPT_TAC; ASM_ARITH_TAC]); ALL_TAC] THEN
       MATCH_MP_TAC(REWRITE_RULE[IMP_CONJ] ENSURES_FRAME_SUBSUMED) THEN
       REPEAT(MATCH_MP_TAC SUBSUMED_SEQ THEN REWRITE_TAC[SUBSUMED_REFL]) THEN SUBSUMED_MAYCHANGE_TAC;
-      (* leg1b: q56 (pc+56 pos16N) -> Q318 via head guards. VALIDATED in-session.
+      (* leg1b: q56 (pc+52 pos16N) -> Q318 via head guards. VALIDATED in-session.
          Guards stated in 272-form (16*N=272) because the stepper rewrites the flag
          predicates to 272-form, so the ja branch decision must match that form.
-         cmp eax,248 (s1) not taken [niblen(272)<=248]; ja (s2); cmp ecx,256 (s3) TAKEN [272>256]; ja (s4)->pc+318. *)
+         cmp eax,248 (s1) not taken [niblen(272)<=248]; ja (s2); cmp ecx,256 (s3) TAKEN [272>256]; ja (s4)->pc+314. *)
       ENSURES_INIT_TAC "s0" THEN
       SUBGOAL_THEN `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,272) inlist):int32 list) <= 248` ASSUME_TAC THENL
        [UNDISCH_TAC `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*N) inlist):int32 list) <= 248` THEN
@@ -89,7 +89,7 @@ let EXIT_OFFSET = prove(exit_offset_tm,
       X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (1--4) THEN
       RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `16 * N = 272`]) THEN
       ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]];
-    (* leg2: Q318 -> pc+406 : SCALAR_TAIL_AT_P @ p=16N. Weaken precond to AT_P's pre. *)
+    (* leg2: Q318 -> pc+402 : SCALAR_TAIL_AT_P @ p=16N. Weaken precond to AT_P's pre. *)
     MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN
     EXISTS_TAC (rand(rator(rator(snd(dest_imp(concl(SPECL [`res:int64`;`buf:int64`;`table:int64`;`inlist:byte list`;`pc:num`;`16*N`;`stackpointer:int64`] MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_AT_P))))))) THEN
     CONJ_TAC THENL

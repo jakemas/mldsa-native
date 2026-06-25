@@ -1,6 +1,6 @@
-(* Sub-iter 3: from RIP=pc+219 (after SI2_RESOLVE) to RIP=pc+272 (mid-guard 3 fall-through).
+(* Sub-iter 3: from RIP=pc+215 (after SI2_RESOLVE) to RIP=pc+268 (mid-guard 3 fall-through).
    Mask = mask8c (R8 ushr16, byte 2 -> lanes 16-23, block2 = SUB_LIST(16i+8,4)). Uses PREFIX4's
-   lanes-16..23 maskbit + POPCNT_BYTE2. Requires SI2 chain already applied (RIP=pc+219, RAX still
+   lanes-16..23 maskbit + POPCNT_BYTE2. Requires SI2 chain already applied (RIP=pc+215, RAX still
    the unfolded sub-iter-2 popcount nest). *)
 
 (* SI3_PRE: fold RAX s35 -> word acc2, abbrev acc2, reabbrev mask8c, establish acc2<=248. *)
@@ -38,7 +38,7 @@ let SI3_PRE : tactic =
     ASSUME_TAC (MATCH_MP (ARITH_RULE `acc2 + x <= 248 ==> acc2 <= 248`) bnd3c)) THEN
   VAL_INT64_TAC `acc2:num`;;
 
-(* SI3_GATHER: vextracti128 hi (s36), movzbl capture (s37), gather, store-safe, counter -> RIP pc+265. *)
+(* SI3_GATHER: vextracti128 hi (s36), movzbl capture (s37), gather, store-safe, counter -> RIP pc+261. *)
 let SI3_GATHER : tactic =
   X86_VSTEPS_TAC EXEC (36--36) THEN
   X86_VERBOSE_STEP_TAC EXEC "s37" THEN MOVZBL_R10_CAPTURE_TAC THEN
@@ -94,10 +94,10 @@ let SI3_MG : tactic =
                 (CONJ bnd3c (ARITH_RULE `248 < 2 EXP 32`)) in
     ASSUME_TAC pop_len3 THEN ASSUME_TAC rax_red0 THEN ASSUME_TAC ja);;
 
-(* SI3_RESOLVE: step cmp/ja (s46-47), typed-popcount branch resolution -> RIP s47 = pc+272. *)
+(* SI3_RESOLVE: step cmp/ja (s46-47), typed-popcount branch resolution -> RIP s47 = pc+268. *)
 let SI3_RESOLVE : tactic =
   X86_STEPS_TAC EXEC (46--47) THEN
-  SUBGOAL_THEN `read RIP s47 = word (pc + 272):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s47 = word (pc + 268):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let asms = map snd asl in
       let find_a p = find p asms in

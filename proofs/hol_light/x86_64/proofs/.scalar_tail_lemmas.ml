@@ -1,4 +1,4 @@
-(* Foundational spec lemmas for the SCALAR_TAIL proof (pc+318 byte-at-a-time loop).
+(* Foundational spec lemmas for the SCALAR_TAIL proof (pc+314 byte-at-a-time loop).
    Each scalar iteration consumes 1 input byte = 2 nibbles (low then high), accepting each if <9,
    matching REJ_SAMPLE_ETA4_BYTES_1. These give the per-byte step of the loop invariant. *)
 

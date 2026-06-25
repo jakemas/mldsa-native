@@ -1,5 +1,5 @@
 (* SI2_INTEGRATED: complete sub-iter-2 = gather + store-fold + counter + mid-guard, cheat-free.
-   From post-SI1 s23 (RIP=pc+167, si1 clean store for SUB_LIST(0,16i+4) present), reaches s35 RIP=pc+219
+   From post-SI1 s23 (RIP=pc+163, si1 clean store for SUB_LIST(0,16i+4) present), reaches s35 RIP=pc+215
    with the running clean store folded to SUB_LIST(0,16i+8). Composes SI2_GATHER_TO_STORE +
    ACC1_IDENT/restate + the si2 fold W + SI2_MG_TAC + SI2_RESOLVE.
    Load deps: .pf_target_proof, .maskbit_tgt_2_tac, .tab2_teq_tac, .si2_fold_pieces, .si2_fold_complete, .si2_full.

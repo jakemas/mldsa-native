@@ -16,7 +16,7 @@
      SI4_PRE THEN SI4_GATHER THEN
      ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
      REPEAT CONJ_TAC THENL [ RAX_FINAL_TAC; RCX_FINAL_TAC; ALL_TAC ]
-   reaches RIP s57 = pc+56 and discharges all final-state conjuncts EXCEPT:
+   reaches RIP s57 = pc+52 and discharges all final-state conjuncts EXCEPT:
 
      read (memory :> bytes(res, 4*LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*(i+1)) inlist)))) s57
        = num_of_wordlist (REJ_SAMPLE_ETA4_BYTES (SUB_LIST(0,16*(i+1)) inlist))

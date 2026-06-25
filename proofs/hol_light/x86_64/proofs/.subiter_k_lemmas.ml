@@ -5,7 +5,7 @@
    clean_body_build.ml helpers.
 
    THE UNBLOCK (see memory eta4-subiter2-r9-unblocked): right after PREFIX_TAC
-   reaches clean s23 (RIP=pc+167), REABBREV_TAC `mask8b = read R8 s23` to a BARE
+   reaches clean s23 (RIP=pc+163), REABBREV_TAC `mask8b = read R8 s23` to a BARE
    var BEFORE the sub-iter-2 movzbl.  Then after the movzbl + MOVZBL_R10_CAPTURE,
    fold read R8 s24 = mask8b, giving the clean R10 shape
    word_zx(word_zx(word(val mask8b MOD 256))) -- identical to sub-iter 1.  The

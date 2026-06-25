@@ -1,6 +1,6 @@
-(* Sub-iter 4: from RIP=pc+272 (after SI3_RESOLVE) through the jmp pc+56 (loop back-edge).
+(* Sub-iter 4: from RIP=pc+268 (after SI3_RESOLVE) through the jmp pc+52 (loop back-edge).
    Mask = mask8d (R8 ushr24, byte 3 -> lanes 24-31, block3 = SUB_LIST(16i+12,4)). NO mid-guard
-   (sub-iter 4 has no cmp/ja; ends jmp pc+56). Uses PREFIX4's lanes-24..31 maskbit + POPCNT_BYTE3. *)
+   (sub-iter 4 has no cmp/ja; ends jmp pc+52). Uses PREFIX4's lanes-24..31 maskbit + POPCNT_BYTE3. *)
 
 (* SI4_PRE: fold RAX s47 -> word acc3, abbrev acc3, reabbrev mask8d, establish acc3<=248. *)
 let SI4_PRE : tactic =
@@ -40,7 +40,7 @@ let SI4_PRE : tactic =
     ASSUME_TAC (MATCH_MP (ARITH_RULE `acc3 + x <= 248 ==> acc3 <= 248`) bnd4d)) THEN
   VAL_INT64_TAC `acc3:num`;;
 
-(* SI4_GATHER: vpsrldq (s48), movzbl capture (s49), gather, store-safe, counter+jmp -> RIP pc+56. *)
+(* SI4_GATHER: vpsrldq (s48), movzbl capture (s49), gather, store-safe, counter+jmp -> RIP pc+52. *)
 let SI4_GATHER : tactic =
   X86_VSTEPS_TAC EXEC (48--48) THEN
   X86_VERBOSE_STEP_TAC EXEC "s49" THEN MOVZBL_R10_CAPTURE_TAC THEN

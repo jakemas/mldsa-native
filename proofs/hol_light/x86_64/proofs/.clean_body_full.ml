@@ -1,5 +1,5 @@
 (* CLEAN_BODY_FULL_TAC: the complete cheat-free proof of clean_body_tm (the eta4 SIMD loop body,
-   pc+56 -> pc+56). Composes the prologue + 4 sub-iter gather/fold/counter/midguard + final state.
+   pc+52 -> pc+52). Composes the prologue + 4 sub-iter gather/fold/counter/midguard + final state.
    Load order (after main file + cbb_defs):
      .subiter_k_lemmas, .subiter_byte23_lemmas, .maskbit_tgt_tac, .tab1_teq_tac, .pf_target_proof,
      .prefix_g_full_tac, .si1_fold_v2, .maskbit_tgt_2_tac, .tab2_teq_tac, .si2_fold_pieces, .si2_fold_complete,

@@ -1,5 +1,5 @@
 (* SI4_INTEGRATED: full sub-iter-4 (gather + store-fold + counter + jmp), cheat-free.
-   From s47 (RIP=pc+272, running store SUB_LIST(0,16i+12)) to s57 (RIP=pc+56, back-edge),
+   From s47 (RIP=pc+268, running store SUB_LIST(0,16i+12)) to s57 (RIP=pc+52, back-edge),
    store folded to SUB_LIST(0,16i+16). NO mid-guard. g4 = hi 128 lane >>64. Deps: .si4_full
    (SI4_PRE/GATHER), .si4_fold_pieces, .si2_fold_complete (LEN_RECONCILE_GEN), .pf_target_proof. *)
 let SI4_INTEGRATED : tactic =

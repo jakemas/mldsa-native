@@ -1,6 +1,6 @@
 (* ========================================================================= *)
 (* SCALAR_TAIL per-byte body lemma — full cheat-free proof.                    *)
-(* One trip pc+318 -> pc+318 consuming input byte at position p, extending     *)
+(* One trip pc+314 -> pc+314 consuming input byte at position p, extending     *)
 (* the output by REJ_SAMPLE_ETA4_BYTES[EL p inlist]. Entry generalized to      *)
 (* arbitrary p. The ~(L=255 /\ low<9) hyp rules out the mid-byte exit (that    *)
 (* case is the terminal segment, handled by the WOP wrapper, not this body).   *)
@@ -22,7 +22,7 @@ let RCX_INC_TAC =
     REWRITE_TAC[VAL_WORD; DIMINDEX_64] THEN CONV_TAC SYM_CONV THEN MATCH_MP_TAC MOD_LT THEN
     MP_TAC(ASSUME `p<272`) THEN ARITH_TAC];;
 
-(* setup to s8: lands RIP=pc+347 with R10=word(val(EL p (inlist:byte list)) MOD 16), outlen0 abbreviated,
+(* setup to s8: lands RIP=pc+343 with R10=word(val(EL p (inlist:byte list)) MOD 16), outlen0 abbreviated,
    LENGTH(REJ(SUB(0,p)))=outlen0 kept. *)
 let SCALAR_BODY_SETUP =
   REPEAT GEN_TAC THEN STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN
@@ -58,8 +58,8 @@ let STORE4_FROM_SPEC sN addrt =
 let SCALAR_TAIL_BODY = prove
  (`!res buf table (inlist:byte list) pc (p:num) (L:num) stackpointer.
         LENGTH inlist = 272 /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val res,1024) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table, 2048) /\
         p < 272 /\ L < 256 /\
@@ -67,7 +67,7 @@ let SCALAR_TAIL_BODY = prove
         ~(L = 255 /\ val(EL p (inlist:byte list)) MOD 16 < 9)
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+                  read RIP s = word(pc + 314) /\ read RSP s = stackpointer /\
                   read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -75,7 +75,7 @@ let SCALAR_TAIL_BODY = prove
                   read(memory :> bytes(res, 4 * L)) s =
                     num_of_wordlist(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist)))
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+                  read RIP s = word(pc + 314) /\ read RSP s = stackpointer /\
                   read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -88,7 +88,7 @@ let SCALAR_TAIL_BODY = prove
               MAYCHANGE [memory :> bytes(res,1024)])`,
   SCALAR_BODY_SETUP THEN
   ASM_CASES_TAC `val(EL p (inlist:byte list)) MOD 16 < 9` THENL
-   [(* ===== ACCEPT-LOW (low<9): step to pc+368, store low, to pc+383 ===== *)
+   [(* ===== ACCEPT-LOW (low<9): step to pc+364, store low, to pc+379 ===== *)
     SUBGOAL_THEN `~(&(val(word_zx(word(val(EL p (inlist:byte list)) MOD 16):int64):int32)):int - &9 = &(val(word_sub(word_zx(word(val(EL p (inlist:byte list)) MOD 16):int64):int32) (word 9):int32)))` ASSUME_TAC THENL
      [MATCH_MP_TAC JAE_NOT_TAKEN_LT THEN ASM_REWRITE_TAC[] THEN ARITH_TAC; ALL_TAC] THEN
     X86_VSTEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (9--14) THEN DISCARD_OLDSTATE_TAC "s14" THEN
@@ -166,7 +166,7 @@ let SCALAR_TAIL_BODY = prove
                if is_eq c && can(find_term(fun t->try fst(dest_const t)="bytes32" with _->false))c && can(find_term(fun t->t=`val(EL p (inlist:byte list)) DIV 16`))c && not(can(find_term is_cond)c)
                then MP_TAC th else NO_TAC) THEN
             STORE4_FROM_SPEC `s25:x86state` `word_add res (word(4 * (outlen0+1))):int64`]]];
-      (* ===== LO-only (low<9, high>=9): jae pc+387 taken -> pc+318 ===== *)
+      (* ===== LO-only (low<9, high>=9): jae pc+383 taken -> pc+314 ===== *)
       SUBGOAL_THEN `&(val(word_zx(word(val(EL p (inlist:byte list)) DIV 16):int64):int32)):int - &9 = &(val(word_sub(word_zx(word(val(EL p (inlist:byte list)) DIV 16):int64):int32) (word 9):int32))` ASSUME_TAC THENL
        [MATCH_MP_TAC JAE_TAKEN_GE THEN CONJ_TAC THENL
          [MP_TAC(ASSUME `~(val(EL p (inlist:byte list)) DIV 16 < 9)`) THEN ARITH_TAC;
@@ -205,7 +205,7 @@ let SCALAR_TAIL_BODY = prove
              if is_eq c && can(find_term(fun t->try fst(dest_const t)="bytes32" with _->false))c && can(find_term(fun t->t=`val(EL p (inlist:byte list)) MOD 16`))c && not(can(find_term is_cond)c)
              then MP_TAC th else NO_TAC) THEN
           STORE4_FROM_SPEC `s20:x86state` `word_add res (word(4 * outlen0)):int64`]]];
-    (* ===== REJECT-LOW (low>=9): jae pc+351 taken -> pc+375 ===== *)
+    (* ===== REJECT-LOW (low>=9): jae pc+347 taken -> pc+371 ===== *)
     SUBGOAL_THEN `&(val(word_zx(word(val(EL p (inlist:byte list)) MOD 16):int64):int32)):int - &9 = &(val(word_sub(word_zx(word(val(EL p (inlist:byte list)) MOD 16):int64):int32) (word 9):int32))` ASSUME_TAC THENL
      [MATCH_MP_TAC JAE_TAKEN_GE THEN CONJ_TAC THENL
        [MP_TAC(ASSUME `~(val(EL p (inlist:byte list)) MOD 16 < 9)`) THEN ARITH_TAC;
@@ -213,7 +213,7 @@ let SCALAR_TAIL_BODY = prove
     X86_VSTEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (9--12) THEN
     RULE_ASSUM_TAC(REWRITE_RULE[R11_NIBBLE_VAL]) THEN DISCARD_OLDSTATE_TAC "s12" THEN
     ASM_CASES_TAC `val(EL p (inlist:byte list)) DIV 16 < 9` THENL
-     [(* HI-only (low>=9, high<9): jae pc+387 not taken -> store at res+4*outlen0 -> pc+318 *)
+     [(* HI-only (low>=9, high<9): jae pc+383 not taken -> store at res+4*outlen0 -> pc+314 *)
       SUBGOAL_THEN `~(&(val(word_zx(word(val(EL p (inlist:byte list)) DIV 16):int64):int32)):int - &9 = &(val(word_sub(word_zx(word(val(EL p (inlist:byte list)) DIV 16):int64):int32) (word 9):int32)))` ASSUME_TAC THENL
        [MATCH_MP_TAC JAE_NOT_TAKEN_LT THEN ASM_REWRITE_TAC[] THEN ARITH_TAC; ALL_TAC] THEN
       X86_VSTEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (13--16) THEN
@@ -253,7 +253,7 @@ let SCALAR_TAIL_BODY = prove
              if is_eq c && can(find_term(fun t->try fst(dest_const t)="bytes32" with _->false))c && can(find_term(fun t->t=`val(EL p (inlist:byte list)) DIV 16`))c && not(can(find_term is_cond)c)
              then MP_TAC th else NO_TAC) THEN
           STORE4_FROM_SPEC `s19:x86state` `word_add res (word(4 * outlen0)):int64`]];
-      (* NONE (low>=9, high>=9): jae pc+387 taken -> pc+318, no store *)
+      (* NONE (low>=9, high>=9): jae pc+383 taken -> pc+314, no store *)
       SUBGOAL_THEN `&(val(word_zx(word(val(EL p (inlist:byte list)) DIV 16):int64):int32)):int - &9 = &(val(word_sub(word_zx(word(val(EL p (inlist:byte list)) DIV 16):int64):int32) (word 9):int32))` ASSUME_TAC THENL
        [MATCH_MP_TAC JAE_TAKEN_GE THEN CONJ_TAC THENL
          [MP_TAC(ASSUME `~(val(EL p (inlist:byte list)) DIV 16 < 9)`) THEN ARITH_TAC;
@@ -273,7 +273,7 @@ let SCALAR_TAIL_BODY = prove
 (* ========================================================================= *)
 (* WOP WRAPPER -> MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL (replaces the CHEAT).     *)
 (* SCALAR_TAIL_BODY (above) is the per-byte trip. The wrapper:                 *)
-(*  Entry (pc+318): RAX=word outlen0, RCX=word(16N), outlen0=niblen(SUB(0,16N)) *)
+(*  Entry (pc+314): RAX=word outlen0, RCX=word(16N), outlen0=niblen(SUB(0,16N)) *)
 (*    <= 280, res holds REJ(SUB(0,16N)).                                       *)
 (*  Capped-output exit lemmas ALREADY PROVEN:                                  *)
 (*    - count-exit: SUB_LIST_256_FROM_PARTIAL_REJ  (outlen=256 at pos k =>      *)
@@ -299,13 +299,13 @@ let SCALAR_TAIL_BODY = prove
 (*     ~(outlen=255/\low<9) must hold for the body's no-mid-exit precond --       *)
 (*     for i<K-1 trips outlen stays <255-ish; the LAST trip may mid-exit -> it's  *)
 (*     the terminal segment, NOT a body trip).                                   *)
-(*   Phase C: terminal trip (count/offset/mid-byte exit) -> pc+406, apply the    *)
+(*   Phase C: terminal trip (count/offset/mid-byte exit) -> pc+402, apply the    *)
 (*     capped-output lemma matching the exit mode.                               *)
 (*  GOTCHA: the body lemma's `~(L=255/\low<9)` precond is exactly what makes a    *)
 (*  clean trip NOT mid-exit; the mid-byte exit (L=255, low<9 -> outlen hits 256  *)
-(*  after the low store) is a SEPARATE terminal case landing at pc+406 with       *)
+(*  after the low store) is a SEPARATE terminal case landing at pc+402 with       *)
 (*  outlen=256 (count-exit via SUB_LIST_256_FROM_PARTIAL_REJ at pos=16N+K, but    *)
-(*  with the low nibble stored -- a half-byte; handle by stepping pc+318..pc+373  *)
+(*  with the low nibble stored -- a half-byte; handle by stepping pc+314..pc+369  *)
 (*  directly in the terminal segment).                                           *)
 (*  Foundational arith: NIBLEN_BOUND_FROM_WOP (niblen(16N)<=280),               *)
 (*  LENGTH_OUTLIST0_LE_280, SCALAR_TAIL_N_EQ_17 (offset case N=17).             *)

@@ -20,16 +20,16 @@ let PREFIX_G_TAC : tactic =
   MP_TAC(SPECL [`16*i`;`256`] JA_NOT_TAKEN_LE) THEN ASM_REWRITE_TAC[] THEN DISCH_TAC THEN
   VAL_INT64_TAC `outlen0:num` THEN
   X86_STEPS_TAC EXEC (1--2) THEN
-  SUBGOAL_THEN `read RIP s2 = word(pc + 67):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s2 = word(pc + 63):int64` ASSUME_TAC THENL
    [FIRST_X_ASSUM(fun th -> if is_imp(concl th) && can(find_term((=)`&248:int`))(concl th)
                            then ASSUME_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC) THEN
-    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 318`))(concl th) then MP_TAC th else NO_TAC) THEN
+    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
     ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC; ALL_TAC] THEN
   X86_STEPS_TAC EXEC (3--4) THEN
-  SUBGOAL_THEN `read RIP s4 = word(pc + 79):int64` ASSUME_TAC THENL
+  SUBGOAL_THEN `read RIP s4 = word(pc + 75):int64` ASSUME_TAC THENL
    [FIRST_X_ASSUM(fun th -> if is_imp(concl th) && can(find_term((=)`&256:int`))(concl th)
                            then ASSUME_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC) THEN
-    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 318`))(concl th) then MP_TAC th else NO_TAC) THEN
+    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
     ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC; ALL_TAC] THEN
   X86_VSTEPS_TAC EXEC (5--5) THEN
   SUBGOAL_THEN `val(word(16*i):int64) = 16*i` ASSUME_TAC THENL
@@ -338,8 +338,8 @@ let PREFIX_G_TAC : tactic =
     (* stash these as assumptions for the step *)
     ASSUME_TAC pop_len THEN ASSUME_TAC bnd THEN ASSUME_TAC rax_red0 THEN ASSUME_TAC ja) THEN
   X86_STEPS_TAC EXEC (22--23) THEN
-  (* resolve the ja branch: RIP s23 = pc+167 (fall through to sub-iter 2) *)
-  SUBGOAL_THEN `read RIP s23 = word (pc + 167):int64` ASSUME_TAC THENL
+  (* resolve the ja branch: RIP s23 = pc+163 (fall through to sub-iter 2) *)
+  SUBGOAL_THEN `read RIP s23 = word (pc + 163):int64` ASSUME_TAC THENL
    [W(fun (asl,w) ->
       let blk0 = find (fun (_,th) -> match concl th with
           Comb(Comb(Const("=",_),l),_) -> (try let h,args=strip_comb l in fst(dest_const h)="SUB_LIST" &&
@@ -348,7 +348,7 @@ let PREFIX_G_TAC : tactic =
           Comb(Comb(Const("=",_),Comb(Const("word_zx",_),Comb(Comb(Const("word_add",_),_),_))),_) -> true | _ -> false) asl in
       let ja = find (fun (_,th) -> is_disj(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th)) asl in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 167`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 163`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[GSYM(snd blk0)] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC] THEN

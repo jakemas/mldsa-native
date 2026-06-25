@@ -10,7 +10,7 @@
 (* ENSURES_SEQUENCE_TAC + ENSURES_PRECONDITION/POSTCONDITION_THM).             *)
 (* ========================================================================= *)
 
-(* LENGTH(BUTLAST mldsa_rej_uniform_eta4_tmc) = 406 (tmc has length 407). *)
+(* LENGTH(BUTLAST mldsa_rej_uniform_eta4_tmc) = 402 (tmc has length 403). *)
 let LENGTH_BUTLAST_GEN = prove
  (`!l:A list. ~(l = []) ==> LENGTH l = LENGTH(BUTLAST l) + 1`,
   REPEAT STRIP_TAC THEN
@@ -19,7 +19,7 @@ let LENGTH_BUTLAST_GEN = prove
   REWRITE_TAC[LENGTH_APPEND; LENGTH] THEN ARITH_TAC);;
 
 let LENGTH_BUTLAST_TMC = prove
- (`LENGTH(BUTLAST mldsa_rej_uniform_eta4_tmc) = 406`,
+ (`LENGTH(BUTLAST mldsa_rej_uniform_eta4_tmc) = 402`,
   MP_TAC(ISPEC `mldsa_rej_uniform_eta4_tmc` LENGTH_BUTLAST_GEN) THEN
   REWRITE_TAC[GSYM LENGTH_EQ_NIL; LENGTH_MLDSA_REJ_UNIFORM_ETA4_TMC] THEN
   CONV_TAC NUM_REDUCE_CONV THEN ARITH_TAC);;
@@ -28,16 +28,16 @@ let SCALAR_TAIL_RUN = prove
  (`!d res buf table (inlist:byte list) pc (p:num) stackpointer.
         272 - p <= d /\
         LENGTH inlist = 272 /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val table,2048) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val res,1024) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val table,2048) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table,2048) /\
         p <= 272 /\
         LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list) <= 256
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+                  read RIP s = word(pc + 314) /\ read RSP s = stackpointer /\
                   read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
@@ -232,7 +232,7 @@ let SCALAR_TAIL_RUN = prove
           ANTS_TAC THENL [ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC; ALL_TAC] THEN
           DISCH_THEN(fun body_th ->
             let bodyQ = rand(rator(concl body_th)) in
-            ENSURES_SEQUENCE_TAC `pc + 318` bodyQ THEN
+            ENSURES_SEQUENCE_TAC `pc + 314` bodyQ THEN
             CONJ_TAC THENL
              [(* leg1: P -> bodyQ via the body lemma (precond/postcond weaken) *)
               MATCH_MP_TAC ENSURES_POSTCONDITION_THM THEN
@@ -266,16 +266,16 @@ let SCALAR_TAIL_RUN = prove
 let MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_FROM_RUN = prove
  (`!res buf table (inlist:byte list) pc N stackpointer.
         LENGTH inlist = 272 /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val table,2048) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val res,1024) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val table,2048) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table,2048) /\
         16 * N <= 272 /\
         LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16 * N) inlist):int32 list) <= 256
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(pc + 318) /\
+                  read RIP s = word(pc + 314) /\
                   read RSP s = stackpointer /\
                   read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s =
@@ -311,16 +311,16 @@ let MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_FROM_RUN = prove
 let MLDSA_REJ_UNIFORM_ETA4_SCALAR_TAIL_AT_P = prove
  (`!res buf table (inlist:byte list) pc p stackpointer.
         LENGTH inlist = 272 /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val res,1024) /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val buf, 272) /\
-        nonoverlapping_modulo (2 EXP 64) (pc, 407) (val table,2048) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val res,1024) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val buf, 272) /\
+        nonoverlapping_modulo (2 EXP 64) (pc, 403) (val table,2048) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val buf, 272) /\
         nonoverlapping_modulo (2 EXP 64) (val res,1024) (val table,2048) /\
         p <= 272 /\
         LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,p) inlist):int32 list) <= 256
         ==> ensures x86
              (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word(pc + 318) /\ read RSP s = stackpointer /\
+                  read RIP s = word(pc + 314) /\ read RSP s = stackpointer /\
                   read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
                   read(memory :> bytes(table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
                   read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\

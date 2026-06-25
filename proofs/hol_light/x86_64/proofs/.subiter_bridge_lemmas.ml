@@ -89,7 +89,7 @@ let MIDGUARD_NOT_TAKEN_CLEAN = prove
 (* JA (Condition_NBE, unsigned >) TAKEN when a>k: companion of s2n-bignum's     *)
 (* JA_NOT_TAKEN_LE. Negates the not-taken disjunction. Used in the exit-block    *)
 (* proof to resolve the mid-guards `cmp eax,248; ja scalar` when the running     *)
-(* count exceeds 248 (the guard fires -> exit to pc+318).                        *)
+(* count exceeds 248 (the guard fires -> exit to pc+314).                        *)
 let JA_TAKEN_GT = prove
  (`!a k:num. k < a /\ a < 2 EXP 32
      ==> ~(~(&(val(word_zx(word a:int64):int32)):int - &k =

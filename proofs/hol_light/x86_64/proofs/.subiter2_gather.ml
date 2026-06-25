@@ -10,7 +10,7 @@
   X86_VSTEPS_TAC EXEC (28--28) THEN REABBREV_TAC `sx2 = read YMM1 s28` THEN    (* vpmovsxbd *)
   (* NEXT: stepA (sx2 = usimd8 (\b.word_sx b)(word_zx(word_zx pshuf2))) via WORD_BLAST;
      then store s29 (X86_STEPS, store-safe via acc1<=248 + VAL); then counter 30-33;
-     then sub-iter-2 popeq/bsum/bnd/ja (mask byte = bits 8-15) + resolve mid-guard 2 -> pc+219. *)
+     then sub-iter-2 popeq/bsum/bnd/ja (mask byte = bits 8-15) + resolve mid-guard 2 -> pc+215. *)
 
 (* VALIDATED 2026-06-17 through the STORE: gather (above) + stepA + store all apply cleanly:
    SUBGOAL_THEN `sx2 = usimd8 (\b. word_sx b)(word_zx(word_zx pshuf2))` ASSUME_TAC THENL
