@@ -275,3 +275,14 @@ let clean_body_ms_tm =
      [4*acc+32<=1024 since acc<=248 => 4*248+32=1024], and the e0 tail via hyp 12.
    VALIDATED walk so far: reached s21 (sub-iter 1 done incl store, events tracked,
    counters advanced). Continue 22.. for si2/si3/si4 + mid-guards. *)
+
+(* At s21: RIP=pc+152 (mid-guard 1 CMP eax,248), RCX=16i+4(zx). To resolve the
+   mid-guard JA-not-taken, RAX must be bounded: RAX = word(niblen(16i+4)) <= 248.
+   This requires the SAME accept-count folding as CLEAN_BODY (SI1_FOLD_V2 + the
+   bitval/popcount lemmas) — i.e. the body MEMSAFE proof needs the full CLEAN_BODY
+   fold machinery to bound RAX at each of the 3 mid-guards. So CLEAN_BODY_MEMSAFE
+   genuinely re-does the CLEAN_BODY body proof + event discharge; budget accordingly.
+   Mid-guard offsets (trimmed): pc+152 (after si1), then ~pc+? after si2/si3.
+   Recommended: build CLEAN_BODY_MEMSAFE by editing copies of the SI*_INTEGRATED /
+   MG*_NT tactics to (a) accept the events-strengthened goal shape and (b) append
+   the events discharge, rather than walking raw instructions by hand. *)
