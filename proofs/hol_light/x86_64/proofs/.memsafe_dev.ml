@@ -474,3 +474,23 @@ let clean_body_ms_tm =
    targeted rewrite of just the RAX-read hyp.
    FAILURE PROGRESSION: REFL->mk_comb->tryfind->CHOOSE, now at the very LAST step of PREFIX_MS.
    Essentially PREFIX_G_FULL_MS is ~95% working — one targeted-rewrite fix from completing. *)
+
+(* ★ FULL STRUCTURE MAPPED (2026-06-25) via .memsafe_driver.ml (self-contained: reload eta4 +
+   build clean_body_ms_tm + load _MS tactics + test). The driver RAN end-to-end; RESULT:
+   `FAIL: mk_comb: types do not agree` — now inside the SI2/3/4_MS chain, NOT the prefix.
+   ROOT: each sub-iter's mid-guard is resolved by a SEPARATE tactic the _INTEGRATED tactic calls:
+     SI2_INTEGRATED_MS ends with `SI2_MG_TAC THEN SI2_RESOLVE` (.si2_integrated_ms.ml line 70).
+     SI2_MG_TAC (in .si2_midguard.ml/.si2_full.ml, loaded by main file) does the post-SI2 RIP-COND
+     resolution — and like PREFIX's guards it breaks on the kept events EventJump COND (mk_comb /
+     find-grabs-wrong-COND). SI3/SI4 analogous (SI3_MG_TAC, SI4's guard).
+   => REMAINING FIX (uniform, mechanical): the mid-guard handlers SI2_MG_TAC/SI3_MG_TAC/SI4 guard
+   each need (a) their RIP-resolution FIRST_ASSUM restricted with `can(find_term((=)`read RIP sN`))`,
+   and (b) a MEMSAFE_COND_CLEANUP_TAC call after, EXACTLY like the PREFIX head/s23 guards already
+   fixed. Since SI2_MG_TAC etc. are captured by-value inside SI2_INTEGRATED_MS, make _MS copies of
+   the midguard tactics too (.si2_midguard_ms.ml etc.) with the same restrict+cleanup, and point
+   the _ms integrated tactics at them.
+   ALSO APPLIED: PREFIX final RAX-fold RULE_ASSUM_TAC now SKIPS events hyps (skip_ev filter) to
+   avoid the CHOOSE — that fix is in .prefix_g_full_tac_ms.ml (committed); needs retest but the
+   driver got PAST prefix into SI2, so the prefix CHOOSE fix likely WORKED (failure moved to SI2).
+   DRIVER: .memsafe_driver.ml (loadt it in a fresh session; ~12min; logs /tmp/memsafe_drv.log).
+   Needs tmp_memsafe_helpers.ml present in proofs dir (copy of /tmp/memsafe_helpers.ml). *)

@@ -460,11 +460,16 @@ let PREFIX_G_FULL_MS_TAC : tactic =
   (fun g -> (let oc=open_out "/tmp/cs_pre_clean23.txt" in output_string oc "reached pre-s23-cleanup"; close_out oc); ALL_TAC g) THEN
   MEMSAFE_COND_CLEANUP_TAC THEN
   (fun g -> (let oc=open_out "/tmp/cs_post_clean23.txt" in output_string oc "s23 cleanup done"; close_out oc); ALL_TAC g) THEN
-  (* fold RAX read clean using the assumed pop_len + rax_red0 (now in asl) *)
+  (* fold RAX read clean using the assumed pop_len + rax_red0 (now in asl).
+     MEMSAFE: skip the kept events hyps (`read events`/`memaccess_inbounds`/`exists e_acc`) when
+     rewriting — REWRITE_RULE descending into the events CONS-chain / existential triggers CHOOSE. *)
   W(fun (asl,w) ->
     let pl = find (fun (_,th) -> match concl th with
         Comb(Comb(Const("=",_),Comb(Const("word_popcount",_),_)),_) -> true | _ -> false) asl in
     let rr = find (fun (_,th) -> match concl th with
         Comb(Comb(Const("=",_),Comb(Const("word_zx",_),Comb(Comb(Const("word_add",_),_),_))),_) -> true | _ -> false) asl in
-    RULE_ASSUM_TAC(REWRITE_RULE[snd pl]) THEN RULE_ASSUM_TAC(REWRITE_RULE[snd rr])) THEN
+    let skip_ev th = can (find_term (fun t -> t = `events` ||
+        (try fst(dest_const(fst(strip_comb t))) = "memaccess_inbounds" with _ -> false))) (concl th) in
+    RULE_ASSUM_TAC(fun th -> if skip_ev th then th else REWRITE_RULE[snd pl] th) THEN
+    RULE_ASSUM_TAC(fun th -> if skip_ev th then th else REWRITE_RULE[snd rr] th)) THEN
   ALL_TAC);;
