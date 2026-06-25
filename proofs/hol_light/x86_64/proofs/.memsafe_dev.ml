@@ -1,0 +1,251 @@
+(* ========================================================================= *)
+(* MEMSAFE proof for rej_uniform_eta4 (x86_64).                              *)
+(* Adapted from PR #1014's x86 MLDSA_REJ_UNIFORM_MEMSAFE template.           *)
+(* Load AFTER the main eta4 file + consttime.ml.                             *)
+(* ========================================================================= *)
+
+let allowed_vars_e : term list ref = ref [];;
+let NIL_IMPLIES_APPEND_EQ =
+  prove(`!(l:(A)list) m m'. m = m' /\ [] = l ==> m = APPEND l m'`, MESON_TAC[APPEND]);;
+let EXISTS_E2_TAC allowed_vars_e =
+  (MATCH_MP_TAC NIL_IMPLIES_APPEND_EQ THEN CONJ_TAC THENL [
+    REFL_TAC; SAFE_UNIFY_REFL_TAC allowed_vars_e (ref ["f_events_callee"]) ]) ORELSE
+  (CONV_TAC (TRY_CONV (LAND_CONV CONS_TO_APPEND_CONV)) THEN
+   TRY (GEN_REWRITE_TAC LAND_CONV [APPEND_ASSOC]) THEN
+   AP_THM_TAC THEN AP_TERM_TAC THEN
+   SAFE_UNIFY_REFL_TAC allowed_vars_e (ref ["f_events_callee"])) ORELSE
+  (CONV_TAC (TRY_CONV (LAND_CONV (ONCE_DEPTH_CONV CONS_TO_APPEND_CONV))) THEN
+   CONV_TAC (TRY_CONV (LAND_CONV (ONCE_DEPTH_CONV CONS_TO_APPEND_CONV))) THEN
+   GEN_REWRITE_TAC (LAND_CONV o DEPTH_CONV) [APPEND_ASSOC] THEN
+   AP_THM_TAC THEN AP_TERM_TAC THEN
+   SAFE_UNIFY_REFL_TAC allowed_vars_e (ref ["f_events_callee"]));;
+let DISCHARGE_MEMSAFE_TAC:tactic =
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  DISCHARGE_MEMACCESS_INBOUNDS_TAC;;
+
+(* Like SIMPLE_ARITH_TAC but allows `val` in assumptions since
+   contained_modulo bounds may involve val terms. Filters out
+   read/write/word simulation cruft that makes ASM_ARITH_TAC slow. *)
+let (MEMSAFE_ARITH_TAC:tactic) =
+  let numty = `:num` in
+  let is_num_relop tm =
+    exists (fun op -> is_binary op tm &&
+                      (let x,_ = dest_binary op tm in type_of x = numty))
+           ["=";"<";"<=";">";">="]
+  and avoiders = ["lowdigits"; "highdigits"; "bigdigit";
+                  "read"; "write"; "word"] in
+  let avoiderp tm =
+    match tm with Const(n,_) -> mem n avoiders | _ -> false in
+  let filtered tm =
+    (is_num_relop tm || (is_neg tm && is_num_relop (dest_neg tm))) &&
+    not(can (find_term avoiderp) tm) in
+  let tweak = GEN_REWRITE_RULE TRY_CONV [ARITH_RULE `~(n = 0) <=> 1 <= n`] in
+  W(fun (asl,w) ->
+    let asl' = filter (fun (_,th) -> filtered(concl th)) asl in
+    MAP_EVERY (MP_TAC o tweak o snd) asl' THEN CONV_TAC ARITH_RULE);;
+
+(* Bring `bitval p <= 1` as a MP_TAC hypothesis so MEMSAFE_ARITH_TAC's
+   ARITH_RULE can derive bounds on bitval-sum expressions arising from
+   VPMOVMSKPS-derived table indices. *)
+let MEMSAFE_BITVAL_TAC:tactic =
+  W(fun (asl,w) ->
+    let bvs = find_terms (fun t ->
+      try fst(dest_const(rator t)) = "bitval" with _ -> false) w in
+    let bvs = setify bvs in
+    MAP_EVERY (fun bv ->
+      MP_TAC(SPEC (rand bv) BITVAL_BOUND)) bvs);;
+
+(* ASM-aware version of CONTAINED_TAC for loop-body proofs where
+   memory addresses involve symbolic loop variables. Uses MEMSAFE_ARITH_TAC
+   which filters assumptions to avoid the performance issues of ASM_ARITH_TAC
+   with hundreds of symbolic simulation assumptions. *)
+let CONTAINED_ASM_TAC =
+  GEN_REWRITE_TAC I [GSYM CONTAINED_MODULO_MOD2] THEN
+  GEN_REWRITE_TAC (BINOP_CONV o LAND_CONV o LAND_CONV o TOP_DEPTH_CONV)
+   [VAL_WORD_ADD; VAL_WORD; DIMINDEX_64] THEN
+  CONV_TAC(BINOP_CONV(LAND_CONV MOD_DOWN_CONV)) THEN
+  REWRITE_TAC[CONTAINED_MODULO_MOD2; CONTAINED_MODULO_LMOD] THEN
+  ((GEN_REWRITE_TAC I [CONTAINED_MODULO_REFL] THEN
+    MEMSAFE_BITVAL_TAC THEN MEMSAFE_ARITH_TAC) ORELSE
+   (MATCH_MP_TAC CONTAINED_MODULO_OFFSET_SIMPLE THEN
+    MEMSAFE_BITVAL_TAC THEN MEMSAFE_ARITH_TAC) ORELSE
+   (MATCH_MP_TAC CONTAINED_MODULO_SIMPLE THEN
+    MEMSAFE_BITVAL_TAC THEN MEMSAFE_ARITH_TAC));;
+
+(* Variant of DISCARD_OLDSTATE_TAC that preserves hypotheses about
+   `read events sN` regardless of state references inside their RHS.
+   Needed because the SIMD loop body's POPCNT operand transitively
+   references `read (memory :> bytes256 buf) s4`, which would otherwise
+   cause the whole events chain to be erased. *)
+let DISCARD_OLDSTATE_KEEP_EVENTS_TAC (s:string) =
+  let v = mk_var(s, `:x86state`) in
+  let rec unbound_statevars_of_read bound_svars tm =
+    match tm with
+      Comb(Comb(Const("read",_),cmp),s) ->
+        if mem s bound_svars then [] else [s]
+    | Comb(a,b) -> union (unbound_statevars_of_read bound_svars a)
+                         (unbound_statevars_of_read bound_svars b)
+    | Abs(v,t) -> unbound_statevars_of_read (v::bound_svars) t
+    | _ -> [] in
+  let is_events_hyp tm =
+    is_eq tm &&
+    (try let l = lhs tm in
+         let f, args = strip_comb l in
+         fst(dest_const f) = "read" &&
+         List.length args = 2 &&
+         fst(dest_const(List.hd args)) = "events"
+     with _ -> false) in
+  DISCARD_ASSUMPTIONS_TAC(
+    fun thm ->
+      if is_events_hyp (concl thm) then false
+      else
+        let us = unbound_statevars_of_read [] (concl thm) in
+        if us = [] || us = [v] then false
+        else if not(mem v us) then true
+        else true);;
+
+(* ASM-aware version of DISCHARGE_MEMSAFE_TAC for loop bodies.
+   Uses CONTAINED_ASM_TAC for contained_modulo proofs with symbolic bounds. *)
+let DISCHARGE_MEMSAFE_ASM_TAC:tactic =
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  REWRITE_TAC[MEMACCESS_INBOUNDS_APPEND] THEN
+  CONJ_TAC THENL
+   [REWRITE_TAC[memaccess_inbounds; ALL; EX; FST; SND] THEN
+    REPEAT CONJ_TAC THEN
+    TRY(REPEAT ((DISJ1_TAC THEN CONTAINED_ASM_TAC) ORELSE DISJ2_TAC ORELSE
+                CONTAINED_ASM_TAC) THEN NO_TAC);
+    REWRITE_TAC[APPEND; APPEND_NIL] THEN
+    FIRST_ASSUM ACCEPT_TAC];;
+
+
+
+(* ------------------------------------------------------------------------- *)
+(* MEMSAFE loop invariant (= CORRECT_LOOPINV + events-accumulator conjunct). *)
+(* The register/memory tracking is needed to bound RAX (<=248) so the SIMD   *)
+(* stores vmovdqu [rdi+rax*4] are provably in [res,1024).                    *)
+(* ------------------------------------------------------------------------- *)
+let MEMSAFE_LOOPINV =
+ `\i s.
+      read RSP s = stackpointer /\
+      read (memory :> bytes (buf,272)) s = num_of_wordlist inlist /\
+      read (memory :> bytes (table,2048)) s = num_of_wordlist mldsa_rej_uniform_table /\
+      read RDI s = res /\ read RSI s = buf /\ read RDX s = table /\
+      read YMM2 s = word 6811299366900952671974763824040465167839410862684739061144563765171360567055 /\
+      read YMM3 s = word 1816346497840254045859937019744124044757176230049263749638550337379029484548 /\
+      read YMM4 s = word 4086779620140571603184858294424279100703646517610843436686738259102816340233 /\
+      read RAX s = word(LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist))) /\
+      read RCX s = word(16*i) /\
+      read(memory :> bytes(res,4*LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist)))) s =
+        num_of_wordlist(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist)) /\
+      (exists e_acc.
+         read events s = APPEND e_acc e /\
+         memaccess_inbounds e_acc [buf,272; table,2048] [res,1024])`;;
+
+(* Scaffold proven to reach 5 subgoals (mirrors CORRECT_SCAFFOLD_TAC):
+   WOP on (256<16i \/ 248<niblen) -> N>=2; ENSURES_WHILE_UP_TAC (N-1) (pc+52)(pc+52) MEMSAFE_LOOPINV.
+   Subgoals: [G0 N-1<>0] [G1 init pc->pc+52, 11 steps] [G2 body i] [G3 back-edge] [G4 exit-block].
+   TODO: prove G1..G4 mirroring CLEAN_BODY/MID_EXIT/EXIT_OFFSET/SCALAR_TAIL but tracking events
+   via DISCHARGE_MEMSAFE_ASM_TAC / DISCHARGE_MEMSAFE_TAC + DISCARD_OLDSTATE_KEEP_EVENTS_TAC. *)
+
+(* ------------------------------------------------------------------------- *)
+(* VALIDATED in-session (2026-06-25): scaffold + G0 + G1 all close.          *)
+(*   G0 (N-1<>0): REPEAT(FIRST_X_ASSUM(MP_TAC o check(~(N=0)/~(N=1)))) THEN  *)
+(*                ARITH_TAC                                                   *)
+(*   G1 (init pc->pc+52, 11 steps): mirror CORRECT G1 then                   *)
+(*       EXISTS_TAC `[]:(uarch_event)list` THEN                              *)
+(*       REWRITE_TAC[APPEND; memaccess_inbounds; ALL]                        *)
+(*   => events-tracking discharge confirmed working.                         *)
+(* REMAINING: G2 loop body (4 sub-iters, track events via                    *)
+(*   DISCHARGE_MEMSAFE_ASM_TAC + DISCARD_OLDSTATE_KEEP_EVENTS_TAC),          *)
+(*   G3 back-edge (refl), G4 exit-block (4 mid-exit cases + scalar tail).    *)
+(*   Mirror the CORRECT decomposition (CLEAN_BODY / MID_EXIT_* / EXIT_OFFSET *)
+(*   / SCALAR_TAIL) but carry the e_acc/memaccess_inbounds conjunct.         *)
+(* ------------------------------------------------------------------------- *)
+
+(* ------------------------------------------------------------------------- *)
+(* G2 BODY walk recipe (in progress 2026-06-25). After X_GEN_TAC i+STRIP:    *)
+(*   ABBREV_TAC curlist = REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist)     *)
+(*   ABBREV_TAC curlen = LENGTH curlist                                      *)
+(*   derive [16*i<=256 /\ niblen(16i)<=248] from hyp7 @ i (i<N-1<N), and     *)
+(*   curlen<=248 via EXPAND curlen/curlist + LENGTH_REJ_SAMPLE_ETA4_BYTES.   *)
+(*   ENSURES_INIT_TAC "s0".                                                  *)
+(* KEY ISSUE: the precondition's (exists e_acc. read events s0 = APPEND...)  *)
+(*   hyp must be X_CHOOSE'd to a concrete e0 BEFORE stepping, and preserved  *)
+(*   across DISCARD via DISCARD_OLDSTATE_KEEP_EVENTS_TAC (NOT plain          *)
+(*   DISCARD_OLDSTATE_TAC, which erases the events chain because POPCNT      *)
+(*   operands transitively reference earlier memory reads).                  *)
+(* The body = the CLEAN_BODY instruction walk (PREFIX_G_FULL + SI1..SI4)     *)
+(*   but those tactics (a) assume the CORRECT goal shape (no events conjunct)*)
+(*   so PREFIX_G_FULL_TAC fails with STRIP_TAC, and (b) call plain           *)
+(*   DISCARD_OLDSTATE. => must walk manually: mirror each SIn_INTEGRATED's   *)
+(*   X86_STEPS ranges but swap DISCARD_OLDSTATE_TAC ->                       *)
+(*   DISCARD_OLDSTATE_KEEP_EVENTS_TAC, and after each vmovdqu store apply    *)
+(*   DISCHARGE_MEMSAFE_ASM_TAC to extend memaccess_inbounds for that store.  *)
+(*   JA-not-taken guards resolved exactly as in CORRECT (RESOLVE via         *)
+(*   curlen<=248 / 16i bounds; RIP COND simplifies to pc+63 etc).            *)
+(* Offsets (trimmed): head guards pc+52(CMP eax,248) pc+57(JA) pc+63(CMP     *)
+(*   ecx,256) pc+69(JA) -> sub-iter1 from pc+75; mid-guards after si1/2/3 at *)
+(*   pc+160/pc+216/pc+269 (CMP eax,248;JA, not-taken in body); back-edge JMP *)
+(*   pc+309 -> pc+52. (Confirm exact via MLDSA_REJ_UNIFORM_ETA4_EXEC dump.)  *)
+(* ------------------------------------------------------------------------- *)
+
+(* CLEAN_BODY_MEMSAFE term = CLEAN_BODY's stmt + events conjunct in pre&post.
+   Build via (after `let qvars,body=strip_forall(concl CLEAN_BODY); hyps_tm,ens=dest_imp body`):
+     strip_comb ens -> [x86;pre;post;frame]; dest_abs pre/post -> sv,preb / sv2,postb;
+     evtempl = `exists e_acc:(uarch_event)list. read events (s:x86state)=APPEND e_acc (e:(uarch_event)list)
+                /\ memaccess_inbounds e_acc [(buf:int64),272;(table:int64),2048] [(res:int64),1024]`;
+     pre'=mk_abs(sv, mk_conj(preb, vsubst[sv,`s:x86state`] evtempl)); post' similarly;
+     list_mk_forall(qvars@[`e:(uarch_event)list`], mk_imp(hyps_tm, list_mk_comb(ensc,[x86;pre';post';frame]))).
+   KEY: MEMACCESS_INBOUNDS_APPEND splits memaccess_inbounds(APPEND e_body e0) into body+pre parts.
+   Proof = walk body (mirror CLEAN_BODY step ranges) with DISCARD_OLDSTATE_KEEP_EVENTS_TAC and
+   DISCHARGE_MEMSAFE_ASM_TAC after each store. Then loop applies CLEAN_BODY_MEMSAFE per block;
+   mid-exit/scalar tail analogous. *)
+
+(* Runnable builder for the strengthened CLEAN_BODY_MEMSAFE goal term.
+   Load AFTER main file (so MLDSA_REJ_UNIFORM_ETA4_CLEAN_BODY is in scope). *)
+let clean_body_ms_tm =
+  let qvars, body = strip_forall (concl MLDSA_REJ_UNIFORM_ETA4_CLEAN_BODY) in
+  let hyps_tm, ens = dest_imp body in
+  let ensc, ppf = strip_comb ens in
+  let pre = el 1 ppf and post = el 2 ppf and frame = el 3 ppf in
+  let sv, preb = dest_abs pre in
+  let sv2, postb = dest_abs post in
+  let evtempl = `exists e_acc:(uarch_event)list. read events (s:x86state) = APPEND e_acc (e:(uarch_event)list) /\ memaccess_inbounds e_acc [(buf:int64),272; (table:int64),2048] [(res:int64),1024]` in
+  let pre' = mk_abs(sv, mk_conj(preb, vsubst[sv,`s:x86state`] evtempl)) in
+  let post' = mk_abs(sv2, mk_conj(postb, vsubst[sv2,`s:x86state`] evtempl)) in
+  let ens' = list_mk_comb(ensc,[el 0 ppf; pre'; post'; frame]) in
+  list_mk_forall(qvars @ [`e:(uarch_event)list`], mk_imp(hyps_tm, ens'));;
+
+(* PROOF TODO (manual walk; CLEAN_BODY_FULL_TAC does NOT apply to this shape):
+   REPEAT GEN_TAC THEN STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN
+   <X_CHOOSE the pre events hyp to e0> THEN
+   <mirror PREFIX_G_FULL + SI1..SI4 step ranges, but use DISCARD_OLDSTATE_KEEP_EVENTS_TAC
+    in place of any DISCARD_OLDSTATE_TAC, and after each vmovdqu store run DISCHARGE_MEMSAFE_ASM_TAC>
+   THEN ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN <value conjuncts: RAX/RCX final> THEN
+   <events conjunct: EXISTS the accumulated APPEND, REWRITE[MEMACCESS_INBOUNDS_APPEND], split:
+      body part via DISCHARGE_MEMSAFE_ASM_TAC, e0 part = the stripped hyp>. *)
+
+(* VALIDATED walk prefix for clean_body_ms_tm (2026-06-25):
+   g clean_body_ms_tm;;
+   e(REPEAT GEN_TAC THEN STRIP_TAC THEN
+     SUBGOAL_THEN `16 * i <= 256` ASSUME_TAC THENL
+      [UNDISCH_TAC `16 * (i + 1) <= 272` THEN ARITH_TAC; ALL_TAC] THEN
+     SUBGOAL_THEN `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0, 16*i) inlist):int32 list) <= 248` ASSUME_TAC THENL
+      [REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
+       TRANS_TAC LE_TRANS `LENGTH(REJ_NIBBLES_ETA4(SUB_LIST(0, 16 * (i+1)) inlist):int16 list)` THEN
+       ASM_REWRITE_TAC[] THEN MATCH_MP_TAC NIBLEN_PREFIX_MONO THEN ARITH_TAC; ALL_TAC] THEN
+     ENSURES_INIT_TAC "s0");;
+   e(FIRST_X_ASSUM(X_CHOOSE_THEN `e0:(uarch_event)list` STRIP_ASSUME_TAC o check(fun th -> is_exists(concl th))));;
+     -> gives hyps `read events s0 = APPEND e0 e` + `memaccess_inbounds e0 [buf,272;table,2048] [res,1024]`.
+   e(MP_TAC(SPECL [`LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist):int32 list)`;`248`] JA_NOT_TAKEN_LE) THEN
+     ASM_REWRITE_TAC[] THEN DISCH_TAC THEN
+     MP_TAC(SPECL [`16*i`;`256`] JA_NOT_TAKEN_LE) THEN ASM_REWRITE_TAC[] THEN DISCH_TAC THEN
+     VAL_INT64_TAC `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i) inlist):int32 list)` THEN
+     X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (1--2));;  (* head guard CMP+JA, not taken *)
+   NEXT: resolve RIP s2 = word(pc+63) (mirror PREFIX_G_FULL), step (3--4) -> RIP pc+75, then
+   walk SI1 (load chunk0 vpmovzxbw from buf -> 1 read event; store vmovdqu -> 1 write event),
+   SI2/SI3/SI4 each: vmovq table read + vmovdqu res write. After EACH store run DISCHARGE_MEMSAFE_ASM_TAC.
+   Use DISCARD_OLDSTATE_KEEP_EVENTS_TAC instead of DISCARD_OLDSTATE_TAC throughout.
+   Mid-guards after si1/2/3 (CMP eax,248;JA) not-taken via JA_NOT_TAKEN_LE on the running acc<=248. *)
