@@ -550,3 +550,40 @@ let clean_body_ms_tm =
    But events changes each step, so stash must happen per-step. Simplest robust: keep events ONLY
    across the actual mem-access instructions; for pure-register/SIMD steps use plain X86_STEPS
    (discard), then the events chain is only the access events. NEEDS DESIGN. *)
+
+(* ★ EVENTS-STASH DESIGN (task #14, refined 2026-06-25) — the robust path.
+   STEP→INSTR MAP for the loop body (pc+52, step k = kth instr):
+     guards: 1(cmp eax) 2(ja) 3(cmp ecx) 4(ja); MEM ACCESSES at steps:
+     5  = vpmovzxbw (rsi,rcx) load  -> EventLoad(buf+16i,16)
+     14 = vmovq (rdx,r10,8) table   -> EventLoad(table+idx*8,8)   [sub-iter 1]
+     17 = vmovdqu ymm1,(rdi,rax,4)  -> EventStore(res+4*acc,32)
+     26,29 (sub-iter 2); 38,41 (sub-iter 3); 50,53 (sub-iter 4) — table read + store each.
+     mid-guards: 22-23(after si1), 34-35(after si2), 46-47(after si3); back-edge jmp = 57.
+   So mem-access step set = {5,14,17,26,29,38,41,50,53} (9 accesses: 1 load + 4 table + 4 store).
+   PROBLEM CONFIRMED: keeping the events hyp in the goal while value-folds run trips MANY
+   conversions (SI1 CHOOSE, SI2 VSTEPS-24 mk_comb, COMPONENT_READ_OVER_WRITE, RULE_ASSUM...).
+   Patching each is whack-a-mole AND the interactive session degrades with redefs.
+   ROBUST DESIGN: maintain the events relation as an OCaml `thm ref` OUTSIDE the goal asl, so
+   discards never touch it. Mechanism:
+     - Run the EXISTING CLEAN_BODY value proof UNCHANGED (events discarded; already works, ~153s).
+       BUT capture, at each mem-access step, the local event-delta theorem
+       `|- read events sK = CONS(EventX(addr,sz)) (read events s_{K-1})` BEFORE the discard.
+     - This requires a custom step wrapper that, for the 9 access steps, snapshots the
+       `read events sK = ...` assumption (via a hook) into a list ref, then proceeds normally.
+     - After the body, fold the 9 deltas into `read events s57 = APPEND access_chain (read events s0)`
+       by transitivity, prove `memaccess_inbounds access_chain [buf,272;table,2048][res,1024]`
+       (each EventLoad/Store address in range via acc<=248 + 16i<=256 bounds), and discharge.
+   ALTERNATIVE (simpler, try first): the value proof's stepping already produces the events hyp
+   transiently. Insert a hook tactic AFTER each access step that does
+     `FIRST_X_ASSUM(fun th -> if is `read events sK = CONS..` then (stash := th::!stash; ALL_TAC) ...)`
+   — but stash-into-ref from inside a tactic is fine (side effect). Pure-register steps: let the
+   normal discard drop their (no-op) events hyps. At end, chain the stashed deltas.
+   This DECOUPLES events from value: value proof runs verbatim (CLEAN_BODY_FULL_TAC), events
+   captured as a side-effect list, discharged at the end. NO value-fold patching needed.
+   IMPLEMENTATION NOTE: the stash hook must run while `read events sK` is still in asl (right after
+   the access step, before DISCARD_OLDSTATE). Since CLEAN_BODY uses X86_VSTEPS (no discard) for the
+   SIMD steps and the events hyp persists within a sub-iter until PURGE_STALE_STATES, capture at
+   sub-iter boundaries. Cleanest: a parallel pure-events ensures lemma proved with X86_STEPS_KEEPEV
+   ONLY (no value tactics) BUT with guard-resolution supplied as ASSUMED bounds (curlen<=248 etc.
+   passed in as hyps), so the events walk needs no fold — the bounds come free from the value proof
+   run separately, then both compose via ENSURES conjunction (same trace). *)
