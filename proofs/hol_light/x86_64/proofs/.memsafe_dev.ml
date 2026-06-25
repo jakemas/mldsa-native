@@ -416,3 +416,16 @@ let clean_body_ms_tm =
    Possible fix: cleanup should MP_TAC+re-ASSUME (not consume) the consequent, or use ASSUME copy.
    STATE: head-guard COND cleanup fully working; SI1 fold reused intact; only post-SI1 find-shape
    interaction remains. _ms files committed. *)
+
+(* TRYFIND LOCALIZED (2026-06-25): probe files /tmp/cs_s17.txt + /tmp/cs_c1821.txt confirm
+   PREFIX_G_FULL_MS passes the SI1 store (s17) and counters (s18-21). The `tryfind` is in the
+   SI1 accept-count FOLD region, lines ~355-410 of .prefix_g_full_tac_ms.ml — most likely the
+   OCaml `find` at line 363-364 (`read R9 s21`) or the `maskbit` find at 384-388 (fragile nested
+   bit/word_subword shape match). With KEEP_EVENTS the `read events s21` hyp + PURGE_STALE_STATES
+   interaction is the suspect. These finds are pure value-fold logic (unrelated to events), so the
+   issue is that PURGE_STALE_STATES_TAC ["s15"]/["s16"] (lines 345,347) behaves differently when
+   events hyps reference purged states — it may drop or fail to retain the R9/maskbit hyp.
+   NEXT: add probe before line 363 r9-find; if R9 s21 hyp missing, the KEEP_EVENTS purge dropped it
+   -> need to ensure PURGE keeps R9. Likely fix: the events hyp at s21 references R9's popcount
+   operand, so DISCARD/PURGE logic erases R9 too. Use a PURGE variant that keeps R9 (or run the
+   fold BEFORE purging). This is the same class of issue as the events-discard but for value hyps. *)
