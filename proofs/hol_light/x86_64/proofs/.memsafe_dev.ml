@@ -358,3 +358,22 @@ let clean_body_ms_tm =
    value via RAX_FINAL/RCX_FINAL, events via the now-COND-free CONS chain + MEMACCESS_INBOUNDS_APPEND
    + DISCHARGE_MEMSAFE_ASM_TAC. ALL mechanism now validated; remaining = wire the cleanup into the
    _ms tactic files + the per-access in-bounds discharge + replicate for mid-exit/scalar-tail. *)
+
+(* ★ FULL forward path validated (2026-06-25): manually walked clean_body_ms with
+   X86_STEPS_KEEPEV + per-guard COND-cleanup through BOTH head guards and into SI1.
+   Confirmed event chain at s20 (RIP=pc+149, just before mid-guard 1 at pc+152):
+     events s4  = CONS(EventJump(pc+75,pc+75))(CONS(EventJump(pc+63,pc+63))(APPEND e0 e))   [both guards collapsed]
+     events s5  = CONS(EventLoad(buf+1*val(word(16i)),16)) (...)                            [SI1 vpmovzxbw load]
+   So the load event is EventLoad(word_add buf (word(1*val(word(16*i)))), 16) — needs
+   contained in (buf,272): since val(word(16i))=16i (16i<2^64) and 16i+16<=272 (16i<=256), holds.
+   NEXT in walk = the popcnt/add updating RAX to acc1=niblen(16i+4), then mid-guard CMP eax,248
+   at pc+152 — this is where SI1_FOLD_V2's accept-count fold is REQUIRED to get RAX<=248.
+   => CONFIRMS the right build is: PREFIX_G_FULL_MS THEN SI1_FOLD_V2 THEN SI2/3/4_INTEGRATED_MS,
+   with the COND-cleanup baked into the _MS tactic files at each guard. The cleanup to inject
+   after each guard's X86_STEPS_KEEPEV resolution (events hyp sN):
+     let cc = el 0 (snd(strip_comb (find_term is COND in events-sN-hyp))) in
+     SUBGOAL_THEN `cc=F` ASSUME_TAC THENL [<MP the matching JA_NOT_TAKEN consequent>; ALL_TAC] THEN
+     RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `cc=F`; COND_CLAUSES])
+   (head guards use &248/&256; mid-guards use &248 on the running acc).
+   STATUS: head-guard cleanup proven; SI1_FOLD_V2 reuse confirmed needed; remaining = bake
+   cleanup into _MS files + finish SI fold reuse + events discharge + exit/tail + wrappers. *)
