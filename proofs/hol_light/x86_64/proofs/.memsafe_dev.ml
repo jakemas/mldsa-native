@@ -342,3 +342,19 @@ let clean_body_ms_tm =
    RULE_ASSUM_TAC(REWRITE_RULE[cond_eq_clean])). i.e. PREFIX_G_FULL_MS needs the Jump-COND cleanup
    applied to ASSUMPTIONS (incl events) at each of the head guards (s2->pc+63, s4->pc+75) and the
    3 mid-guards inside SI2/SI3/SI4. Add this cleanup into the _ms tactic copies. *)
+
+(* ★ VALIDATED COND-cleanup recipe (2026-06-25) — fixes the REFL_TAC failure.
+   After each guard's X86_STEPS_KEEPEV, the events hyp has
+   `read events sN = CONS(EventJump(word(pc+K), <COND cond_c (pc+314) (pc+K)>)) ...`.
+   Collapse it: extract cond_c from the events hyp's COND, then
+     e(SUBGOAL_THEN `cond_c = F` ASSUME_TAC THENL
+        [FIRST_X_ASSUM(fun th -> if is_imp(concl th) && can(find_term((=)`&248:int`))(concl th)
+            then MP_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC) THEN
+         REWRITE_TAC[] THEN MESON_TAC[]; ALL_TAC]);
+     e(RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `cond_c = F`; COND_CLAUSES]));
+   (use `&256:int` for the pos/ecx guard). Confirmed: events s2 EventJump COND collapses to pc+63.
+   So the _MS tactics need this 2-step cleanup inserted after EACH guard resolution
+   (head guards s2,s4 + the 3 mid-guards in SI2/SI3/SI4). With that, the body proof completes:
+   value via RAX_FINAL/RCX_FINAL, events via the now-COND-free CONS chain + MEMACCESS_INBOUNDS_APPEND
+   + DISCHARGE_MEMSAFE_ASM_TAC. ALL mechanism now validated; remaining = wire the cleanup into the
+   _ms tactic files + the per-access in-bounds discharge + replicate for mid-exit/scalar-tail. *)
