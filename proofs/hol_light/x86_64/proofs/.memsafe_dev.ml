@@ -286,3 +286,23 @@ let clean_body_ms_tm =
    Recommended: build CLEAN_BODY_MEMSAFE by editing copies of the SI*_INTEGRATED /
    MG*_NT tactics to (a) accept the events-strengthened goal shape and (b) append
    the events discharge, rather than walking raw instructions by hand. *)
+
+(* ★★ MAJOR PROGRESS (2026-06-25): clean_body_ms_tm is ALMOST provable by the EXISTING
+   CLEAN_BODY chain! Running:
+     PREFIX_G_FULL_TAC THEN SI1_FOLD_V2 THEN SI2_INTEGRATED THEN SI3_INTEGRATED THEN
+     SI4_INTEGRATED THEN RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `16*i+16=16*(i+1)`]) THEN
+     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]
+   walks the WHOLE body to s57 and leaves a 3-conjunct goal:
+     [RAX-fold] /\ [RCX-fold] /\ [exists e_acc. read events s57 = APPEND e_acc e /\ memaccess_inbounds...]
+   The first two close with the EXISTING RAX_FINAL_TAC / RCX_FINAL_TAC:
+     e(CONJ_TAC THENL [RAX_FINAL_TAC; ALL_TAC]); e(CONJ_TAC THENL [RCX_FINAL_TAC; ALL_TAC]);
+   => ONLY the events conjunct remains!
+   ★ BLOCKER: the SI*_INTEGRATED tactics call plain DISCARD_OLDSTATE_TAC which DISCARDS the
+   `read events s57` equation (only MAYCHANGE[...events...] s0 s57 survives). So at the events
+   goal there's no events-chain hyp to discharge from.
+   FIX OPTIONS: (a) rebuild SI1_FOLD_V2/SI2/3/4_INTEGRATED with DISCARD_OLDSTATE_KEEP_EVENTS_TAC
+   substituted for DISCARD_OLDSTATE_TAC (mechanical edit of the .si*_integrated.ml assets), OR
+   (b) prove a separate pure-events lemma for the body. (a) is the clear path: copy the 4 SI
+   asset tactics to *_MS variants that keep events, then the body proof = the chain above +
+   RAX_FINAL + RCX_FINAL + [EXISTS chain; REWRITE MEMACCESS_INBOUNDS_APPEND; DISCHARGE_MEMSAFE_ASM_TAC].
+   This is MUCH smaller than re-deriving the fold — the value machinery is 100% reused. *)
