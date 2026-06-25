@@ -529,3 +529,24 @@ let clean_body_ms_tm =
    RULE_ASSUM/COMPONENT conversions over events), just steps + DISCHARGE_MEMSAFE_ASM_TAC per access.
    The two ensures (value via CLEAN_BODY, events via the lean walk) compose since same step count.
    This avoids the whack-a-mole of patching every value-fold conversion. *)
+
+(* LEAN-WALK TEST (2026-06-25): bulk `X86_STEPS_KEEPEV (1--20)` with NO value folds FAILS at
+   `tryfind` — because the head guards (CMP/JA at steps 1-4) leave a COND RIP the simulator can't
+   decode past without guard resolution. So even a "lean events-only" walk STILL needs:
+   (a) head-guard RIP resolution (s2->pc+63, s4->pc+75) — needs the JA_NOT_TAKEN_LE bounds,
+   (b) the 3 mid-guard RIP resolutions (after si1/2/3) — each needs RAX <= 248, i.e. the accept-count
+       niblen fold (the HARD part of CLEAN_BODY). 
+   CONCLUSION: events tracking and the accept-count value-fold are FUNDAMENTALLY COUPLED at the
+   mid-guards (can't resolve the guard without the bound; can't keep events past the guard without
+   resolving it). So the path forward IS the whack-a-mole: patch each value-fold conversion that
+   trips on the events chain. Known trip points so far: X86_VSTEPS step 24 (SI2 first step, long
+   events chain). The fix class: either (i) make the offending conversion events-aware (skip events
+   hyps), or (ii) TEMPORARILY strip the events hyp to a side var before the value-fold and restore
+   after (cleaner: ASSUME the events-eq under a fresh name, REMOVE it from asl during the fold,
+   re-ASSUME after). Option (ii) generalizes: wrap each SI*_INTEGRATED_MS body so the events hyp is
+   pulled out (UNDISCH/ABBREV) during value folding then put back — avoids ALL the per-conversion
+   patches. RECOMMENDED NEXT: implement an "events-stash" wrapper:
+     STASH = FIRST_X_ASSUM(LABEL_TAC "ev" o check is-events-eq);  ... value fold ...; restore.
+   But events changes each step, so stash must happen per-step. Simplest robust: keep events ONLY
+   across the actual mem-access instructions; for pure-register/SIMD steps use plain X86_STEPS
+   (discard), then the events chain is only the access events. NEEDS DESIGN. *)
