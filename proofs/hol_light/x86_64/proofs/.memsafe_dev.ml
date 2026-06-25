@@ -259,3 +259,19 @@ let clean_body_ms_tm =
    Validated so far: walk reaches pc+75 (sub-iter 1 start, s4) with events tracked
    through the 2 head guards. NEXT: single-step 5.. with KEEP_EVENTS; after the
    vmovdqu store, DISCHARGE_MEMSAFE_ASM_TAC. *)
+
+(* CORRECTION (2026-06-25): X86_STEPS_TAC DOES preserve events — they accumulate
+   as a CONS chain (EventLoad/EventStore/EventJump) onto (APPEND e0 e). Confirmed:
+   at s9 read events = CONS(EventLoad(buf+16i,16))(CONS EventJump..(CONS EventJump..(APPEND e0 e))).
+   So NO special KEEP_EVENTS stepping needed — just walk the body with plain X86_STEPS,
+   resolve the head guards (RIP s2=pc+63, s4=pc+75) and the 3 mid-guards
+   (CMP eax,248;JA not-taken via JA_NOT_TAKEN_LE on running accept-count<=248) like
+   CLEAN_BODY, reach back-edge JMP -> pc+52, then ENSURES_FINAL_STATE_TAC +
+   value conjuncts (RAX_FINAL/RCX_FINAL style) + events conjunct:
+     EXISTS_TAC the accumulated chain prepended to e0, then
+     REWRITE_TAC[MEMACCESS_INBOUNDS_APPEND]/DISCHARGE_MEMSAFE_ASM_TAC to prove each
+     EventLoad(buf+16i,16) contained in (buf,272) [16i+16<=272], each table read
+     contained in (table,2048) [index*8+8<=2048], each store contained in (res,1024)
+     [4*acc+32<=1024 since acc<=248 => 4*248+32=1024], and the e0 tail via hyp 12.
+   VALIDATED walk so far: reached s21 (sub-iter 1 done incl store, events tracked,
+   counters advanced). Continue 22.. for si2/si3/si4 + mid-guards. *)
