@@ -72,6 +72,8 @@ dlog "clean_body_ms_tm built";;
 
 (* _MS body tactics (these embed MEMSAFE_COND_CLEANUP_TAC) *)
 loadt (pdir ^ ".prefix_g_full_tac_ms.ml");;
+loadt (pdir ^ ".si2_resolve_ms.ml");;
+loadt (pdir ^ ".si3_resolve_ms.ml");;
 loadt (pdir ^ ".si2_integrated_ms.ml");;
 loadt (pdir ^ ".si3_integrated_ms.ml");;
 loadt (pdir ^ ".si4_integrated_ms.ml");;

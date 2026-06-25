@@ -494,3 +494,16 @@ let clean_body_ms_tm =
    driver got PAST prefix into SI2, so the prefix CHOOSE fix likely WORKED (failure moved to SI2).
    DRIVER: .memsafe_driver.ml (loadt it in a fresh session; ~12min; logs /tmp/memsafe_drv.log).
    Needs tmp_memsafe_helpers.ml present in proofs dir (copy of /tmp/memsafe_helpers.ml). *)
+
+(* PROGRESS 2026-06-25: created .si2_resolve_ms.ml + .si3_resolve_ms.ml (KEEPEV + restricted ifrip
+   already present + MEMSAFE_COND_CLEANUP_TAC appended); repointed SI2_INTEGRATED_MS->SI2_RESOLVE_MS,
+   SI3_INTEGRATED_MS->SI3_RESOLVE_MS. Driver loads resolve_ms before integrated_ms.
+   RETEST: full body still `FAIL: mk_comb: types do not agree`, now reaching s24 — i.e. INSIDE
+   SI2_INTEGRATED_MS's own body (steps 24-33 + the SUBITER_STORE_SPEC/g2 fold, .si2_integrated_ms.ml
+   lines 13-68), BEFORE SI2_RESOLVE_MS. So the SI2 body fold itself has a find/term-construction that
+   the kept events (EventStore at s29 from the vmovdqu) perturbs — likely the `find storef0` (line 42,
+   `read (bytes256..) s29 = sx2`) or the SUBITER_STORE_SPEC ISPECL building an ill-typed g2/spec.
+   NEXT: probe inside si2_integrated_ms around the store-fold (lines 40-58); check if a `find` grabs
+   the events hyp or if PURGE/REABBREV over s29 with events present breaks. The fix is likely the same
+   pattern: events hyps need to be excluded from a RULE_ASSUM/find in the SI2 body, OR the store-fold's
+   find needs tightening. Prefix is DONE; SI2 body is the active front. */
