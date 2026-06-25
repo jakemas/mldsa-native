@@ -377,3 +377,27 @@ let clean_body_ms_tm =
    (head guards use &248/&256; mid-guards use &248 on the running acc).
    STATUS: head-guard cleanup proven; SI1_FOLD_V2 reuse confirmed needed; remaining = bake
    cleanup into _MS files + finish SI fold reuse + events discharge + exit/tail + wrappers. *)
+
+(* COND-cleanup tactic — WORKING version (v3, MESON-free, fast, valid):
+   let MEMSAFE_COND_CLEANUP_TAC : tactic = fun (asl,w) ->
+     let condapps = mapfilter (fun (_,th) -> let c=concl th in
+       if can(find_term(fun t->t=`events`)) c
+       then find_term(fun t-> try fst(dest_const(fst(strip_comb t)))="COND" && length(snd(strip_comb t))=3 with _->false) c
+       else fail()) asl in
+     match condapps with [] -> ALL_TAC (asl,w) | center::_ ->
+       let cc = el 0 (snd(strip_comb center)) in
+       (SUBGOAL_THEN (mk_eq(cc,`F`)) ASSUME_TAC THENL
+         [REWRITE_TAC[] THEN
+          FIRST_X_ASSUM(fun th -> if is_imp(concl th) &&
+              (can(find_term((=)`&248:int`))(concl th) || can(find_term((=)`&256:int`))(concl th))
+            then ACCEPT_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC); ALL_TAC] THEN
+        RULE_ASSUM_TAC(REWRITE_RULE[ASSUME (mk_eq(cc,`F`)); COND_CLAUSES])) (asl,w);;
+   Standalone after head-guard-1: returns OK (fast, valid). MUST be defined BEFORE loadt'ing
+   the _ms prefix (the prefix captures it by-value).
+   REMAINING TUNING: PREFIX_G_FULL_MS still FAILs `mk_comb: types do not agree` — the cleanup
+   `mk_eq(cc,F)` hits a non-bool `cc` at the 2nd head guard or s23 mid-guard (the find_term grabs
+   a COND nested differently there). FIX: guard the extraction to only pick CONDs whose result
+   type is :int64 (RIP targets) — filter `type_of center = `:int64`` and `type_of cc = `:bool``
+   before building mk_eq; or pick the OUTERMOST COND in the most-recent events hyp only.
+   Also: head-guard-1 worked when run as the very first cleanup; subsequent guards have multiple
+   events hyps (s2,s3,s4 chains) so `condapps` has several — should target the LATEST state's. *)

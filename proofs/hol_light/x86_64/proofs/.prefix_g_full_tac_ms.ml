@@ -23,14 +23,16 @@ let PREFIX_G_FULL_MS_TAC : tactic =
   SUBGOAL_THEN `read RIP s2 = word(pc + 63):int64` ASSUME_TAC THENL
    [FIRST_X_ASSUM(fun th -> if is_imp(concl th) && can(find_term((=)`&248:int`))(concl th)
                            then ASSUME_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC) THEN
-    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
+    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) && can(find_term((=)`read RIP s2`))(concl th) then MP_TAC th else NO_TAC) THEN
     ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC; ALL_TAC] THEN
+  MEMSAFE_COND_CLEANUP_TAC THEN
   X86_STEPS_KEEPEV_TAC EXEC (3--4) THEN
   SUBGOAL_THEN `read RIP s4 = word(pc + 75):int64` ASSUME_TAC THENL
    [FIRST_X_ASSUM(fun th -> if is_imp(concl th) && can(find_term((=)`&256:int`))(concl th)
                            then ASSUME_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC) THEN
-    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) then MP_TAC th else NO_TAC) THEN
+    FIRST_X_ASSUM(fun th -> if can(find_term((=)`pc + 314`))(concl th) && can(find_term((=)`read RIP s4`))(concl th) then MP_TAC th else NO_TAC) THEN
     ASM_REWRITE_TAC[] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC; ALL_TAC] THEN
+  MEMSAFE_COND_CLEANUP_TAC THEN
   X86_VSTEPS_TAC EXEC (5--5) THEN
   SUBGOAL_THEN `val(word(16*i):int64) = 16*i` ASSUME_TAC THENL
    [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN
@@ -418,10 +420,11 @@ let PREFIX_G_FULL_MS_TAC : tactic =
           Comb(Comb(Const("=",_),Comb(Const("word_zx",_),Comb(Comb(Const("word_add",_),_),_))),_) -> true | _ -> false) asl in
       let ja = find (fun (_,th) -> is_disj(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th)) asl in
-      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 163`))(concl th) then MP_TAC th else NO_TAC) THEN
+      FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 163`))(concl th) && can(find_term(fun u->u=`read RIP s23`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[GSYM(snd blk0)] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC] THEN
+  MEMSAFE_COND_CLEANUP_TAC THEN
   (* fold RAX read clean using the assumed pop_len + rax_red0 (now in asl) *)
   W(fun (asl,w) ->
     let pl = find (fun (_,th) -> match concl th with
