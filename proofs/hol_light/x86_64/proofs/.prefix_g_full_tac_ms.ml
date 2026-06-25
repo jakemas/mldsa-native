@@ -1,3 +1,27 @@
+(* MEMSAFE EventJump-COND cleanup (v3 + type guard): collapse the COND in the latest
+   events hyp using the discharged JA-not-taken consequent. MESON-free, fast, valid. *)
+let MEMSAFE_COND_CLEANUP_TAC : tactic =
+  fun (asl,w) ->
+    let cands = mapfilter (fun (_,th) ->
+      let c = concl th in
+      if not(can(find_term(fun t->t=`events`)) c) then fail() else
+      let cond = find_term(fun t-> try
+          fst(dest_const(fst(strip_comb t)))="COND" &&
+          (let a = snd(strip_comb t) in length a = 3 &&
+           type_of(el 0 a) = `:bool` && type_of(el 1 a) = `:int64`)
+        with _->false) c in
+      el 0 (snd(strip_comb cond))) asl in
+    match cands with
+    | [] -> ALL_TAC (asl,w)
+    | cc::_ ->
+      (SUBGOAL_THEN (mk_eq(cc,`F`)) ASSUME_TAC THENL
+        [REWRITE_TAC[] THEN
+         FIRST_X_ASSUM(fun th -> if is_imp(concl th) &&
+              (can(find_term((=)`&248:int`))(concl th) || can(find_term((=)`&256:int`))(concl th))
+            then ACCEPT_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC);
+         ALL_TAC] THEN
+       RULE_ASSUM_TAC(REWRITE_RULE[ASSUME (mk_eq(cc,`F`)); COND_CLAUSES])) (asl,w);;
+
 let PREFIX_G_FULL_MS_TAC : tactic =
   REPEAT GEN_TAC THEN
   (ALL_TAC THEN
