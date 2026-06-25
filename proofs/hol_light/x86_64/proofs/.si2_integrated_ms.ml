@@ -5,20 +5,29 @@
    Load deps: .pf_target_proof, .maskbit_tgt_2_tac, .tab2_teq_tac, .si2_fold_pieces, .si2_fold_complete, .si2_full.
    NB the si1 store must FIRST be restated to bytes(res,4*acc1) (via ACC1_IDENT) BEFORE the gather, so it
    carries past the s29 vpmovdqu. *)
+let si2mk f m = (fun g -> (let oc=open_out f in output_string oc m; close_out oc); ALL_TAC g);;
 let SI2_INTEGRATED_MS : tactic =
+  si2mk "/tmp/si2_0.txt" "SI2 entered" THEN
   REABBREV_TAC `mask8b = read R8 s23` THEN
   ABBREV_TAC `acc1 = outlen0 + LENGTH (REJ_NIBBLES_ETA4 (SUB_LIST(16*i,4) inlist):int16 list)` THEN
   ACC1_IDENT_TAC THEN
   RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+4) inlist):int32 list) = acc1`]) THEN
+  si2mk "/tmp/si2_acc1.txt" "acc1 done" THEN
   X86_VSTEPS_TAC EXEC (24--24) THEN
-  X86_VERBOSE_STEP_TAC EXEC "s25" THEN MOVZBL_R10_CAPTURE_TAC THEN
+  si2mk "/tmp/si2_v24.txt" "vstep24 done" THEN
+  X86_VERBOSE_STEP_TAC EXEC "s25" THEN
+  si2mk "/tmp/si2_s25.txt" "s25 step done (pre movzbl-capture)" THEN
+  MOVZBL_R10_CAPTURE_MS_TAC THEN
+  si2mk "/tmp/si2_movzbl.txt" "movzbl s25 done" THEN
   RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `read R8 s24 = mask8b:int64`]) THEN
   X86_VSTEPS_TAC EXEC (26--26) THEN TAB2_TEQ_TAC THEN REABBREV_TAC `tab2 = read YMM6 s26` THEN
   X86_VSTEPS_TAC EXEC (27--27) THEN REABBREV_TAC `pshuf2 = read YMM6 s27` THEN
   PURGE_STALE_STATES_TAC ["s26"] THEN
   X86_VSTEPS_TAC EXEC (28--28) THEN REABBREV_TAC `sx2 = read YMM1 s28` THEN
+  si2mk "/tmp/si2_s28.txt" "s28 done" THEN
   VAL_INT64_TAC `acc1:num` THEN
   X86_STEPS_KEEPEV_TAC EXEC (29--29) THEN
+  (fun g -> (let oc=open_out "/tmp/si2_a.txt" in output_string oc "SI2 reached s29 (store done)"; close_out oc); ALL_TAC g) THEN
   SUBGOAL_THEN `sx2:int256 = usimd8 (\b:byte. word_sx b:int32) (word_zx(word_zx (pshuf2:int256):int128):int64)` ASSUME_TAC THENL
    [W(fun (asl,w) ->
        let sx2def = find (fun th -> is_eq(concl th) && rand(concl th)=`sx2:int256` &&
@@ -27,9 +36,11 @@ let SI2_INTEGRATED_MS : tactic =
        REWRITE_TAC[usimd8;usimd4;usimd2;DIMINDEX_8;DIMINDEX_16;DIMINDEX_32;DIMINDEX_64;DIMINDEX_128;DIMINDEX_256] THEN
        CONV_TAC WORD_BLAST);
     ALL_TAC] THEN
+  (fun g -> (let oc=open_out "/tmp/si2_b.txt" in output_string oc "sx2 subgoal done"; close_out oc); ALL_TAC g) THEN
   (SUBGOAL_THEN maskbit_tgt_2 ASSUME_TAC THENL [MASKBIT_TGT_2_TAC; ALL_TAC]) THEN
   (SUBGOAL_THEN pf_target_2 ASSUME_TAC THENL [PF_PROOF_2; ALL_TAC]) THEN
   ACC1_IDENT_TAC THEN
+  (fun g -> (let oc=open_out "/tmp/si2_c.txt" in output_string oc "maskbit/pf/acc1 done; entering store-fold"; close_out oc); ALL_TAC g) THEN
   W(fun (asl,w) ->
     let asms = map snd asl in
     let hasC nm th = can (find_term (fun u -> match u with Const(n,_) when n=nm -> true | _ -> false)) (concl th) in

@@ -507,3 +507,25 @@ let clean_body_ms_tm =
    the events hyp or if PURGE/REABBREV over s29 with events present breaks. The fix is likely the same
    pattern: events hyps need to be excluded from a RULE_ASSUM/find in the SI2 body, OR the store-fold's
    find needs tightening. Prefix is DONE; SI2 body is the active front. */
+
+(* PINPOINTED (2026-06-25): SI2 fails at the VERY FIRST step `X86_VSTEPS_TAC EXEC (24--24)`
+   (markers si2_0/si2_acc1 fire, si2_v24 MISSING). `mk_comb: types do not agree`. NOT MOVZBL
+   (that's later) and NOT ACC1_IDENT (fires before). The bare X86_VSTEPS step 24 fails with the
+   LONG events CONS-chain present at s23 (SI1 added EventLoad+EventStore+EventJumps onto APPEND e0 e).
+   The prefix used X86_VSTEPS with events fine (shorter chain), so it's the chain LENGTH/shape at s23
+   that trips some conversion in X86_VERBOSE_STEP_TAC (a frame/read-over-write congruence builds an
+   ill-typed comb on the events term). Tried MOVZBL_R10_CAPTURE_MS_TAC (events-skip) — not the cause.
+   ★ STRATEGIC REASSESSMENT: threading the growing events CONS-chain through the value-fold body
+   makes MANY internal conversions (X86_VSTEPS, RULE_ASSUM, COMPONENT_READ_OVER_WRITE) trip in turn.
+   Each is a separate fix. BETTER ARCHITECTURE (PR1014-style, recommended for next session):
+   DON'T keep events through the value walk. Instead:
+     (a) prove clean_body VALUE part with the ORIGINAL tactics (events discarded) — already works,
+     (b) SEPARATELY prove a pure-events lemma: from pc+52 to pc+52, read events grows by a bounded
+         chain whose memaccess_inbounds holds — via a lean events-only walk (X86_STEPS_KEEPEV +
+         DISCHARGE_MEMSAFE, ignoring all value folds), OR
+     (c) use ENSURES_FRAME-style: the events conjunct is preserved across the body as an invariant
+         if memaccess stays inbounds — but events DO change, so need the chain.
+   Option (b) is cleanest: a separate minimal events walk that does NOT do value folding (so no
+   RULE_ASSUM/COMPONENT conversions over events), just steps + DISCHARGE_MEMSAFE_ASM_TAC per access.
+   The two ensures (value via CLEAN_BODY, events via the lean walk) compose since same step count.
+   This avoids the whack-a-mole of patching every value-fold conversion. *)

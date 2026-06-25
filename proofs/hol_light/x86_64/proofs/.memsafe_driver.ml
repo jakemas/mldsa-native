@@ -79,13 +79,20 @@ loadt (pdir ^ ".si3_integrated_ms.ml");;
 loadt (pdir ^ ".si4_integrated_ms.ml");;
 dlog "MS tactics loaded";;
 
-(* TEST: PREFIX_G_FULL_MS_TAC on clean_body_ms_tm *)
+(* TEST: staged, logging each _MS tactic *)
+let stage nm t = (fun g -> (try let r = t g in dlog ("STAGE OK: "^nm); r
+                            with Failure m -> dlog ("STAGE FAIL "^nm^": "^m); failwith m
+                               | e -> dlog ("STAGE EXN "^nm^": "^Printexc.to_string e); raise e));;
 (let r =
    (try let _ = prove(clean_body_ms_tm,
-          PREFIX_G_FULL_MS_TAC THEN SI1_FOLD_V2 THEN SI2_INTEGRATED_MS THEN SI3_INTEGRATED_MS THEN SI4_INTEGRATED_MS THEN
-          RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `16*i+16 = 16*(i+1)`]) THEN
-          ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-          CONJ_TAC THENL [RAX_FINAL_TAC; CONJ_TAC THENL [RCX_FINAL_TAC; ALL_TAC]]) in
+          stage "PREFIX" PREFIX_G_FULL_MS_TAC THEN
+          stage "SI1" SI1_FOLD_V2 THEN
+          stage "SI2" SI2_INTEGRATED_MS THEN
+          stage "SI3" SI3_INTEGRATED_MS THEN
+          stage "SI4" SI4_INTEGRATED_MS THEN
+          stage "ARITH" (RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `16*i+16 = 16*(i+1)`])) THEN
+          stage "FINAL" (ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]) THEN
+          stage "RAX" (CONJ_TAC THENL [RAX_FINAL_TAC; CONJ_TAC THENL [RCX_FINAL_TAC; ALL_TAC]])) in
         "FULL BODY proved (incl RAX/RCX); events conjunct left"
     with Failure m -> "FAIL: "^m | e -> "EXN: "^Printexc.to_string e) in
  dlog ("RESULT: "^r));;

@@ -23,6 +23,13 @@ let MEMSAFE_COND_CLEANUP_TAC : tactic =
          ALL_TAC] THEN
        RULE_ASSUM_TAC(REWRITE_RULE[ASSUME (mk_eq(cc,`F`)); COND_CLAUSES])) (asl,w);;
 
+(* events-skipping movzbl capture for MEMSAFE: COMPONENT_READ_OVER_WRITE on the kept events hyp
+   builds an ill-typed comb; skip events hyps. *)
+let MOVZBL_R10_CAPTURE_MS_TAC : tactic =
+  RULE_ASSUM_TAC(fun th ->
+    if can (find_term (fun t -> t = `events`)) (concl th) then th
+    else CONV_RULE(REWRITE_CONV[OP8_R8B_READ] THENC ONCE_DEPTH_CONV COMPONENT_READ_OVER_WRITE_CONV) th);;
+
 let PREFIX_G_FULL_MS_TAC : tactic =
   REPEAT GEN_TAC THEN
   (ALL_TAC THEN
