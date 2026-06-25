@@ -429,3 +429,19 @@ let clean_body_ms_tm =
    -> need to ensure PURGE keeps R9. Likely fix: the events hyp at s21 references R9's popcount
    operand, so DISCARD/PURGE logic erases R9 too. Use a PURGE variant that keeps R9 (or run the
    fold BEFORE purging). This is the same class of issue as the events-discard but for value hyps. *)
+
+(* s23 GUARD reached (2026-06-25): probe /tmp/cs_s23rip.txt confirms PREFIX_G_FULL_MS reaches the
+   s23 mid-guard with `read RIP s23 = (if <not-taken-cond> then word(pc+314) else word(pc+163))`
+   present (contains pc+163 AND read RIP s23) — so the s23 RIP resolution FIRST_ASSUM (line 452)
+   matches fine. The earlier `tryfind` was BEFORE this probe was added; with the probe + the
+   read-RIP-s23 restriction, the run now HANGS (>120s) at the s23 guard region (the
+   REWRITE_TAC[GSYM blk0]/rax_red0/ja + REFL, or the MEMSAFE_COND_CLEANUP at 456). The s23 events
+   COND is much bigger (full accept-count expression) so the cleanup's mk_eq(cc,F) + REWRITE over
+   the large COND may be slow, OR a REWRITE loops. NEXT: (a) time the s23 cleanup separately;
+   (b) the s23 EventJump COND condition is the accept-count `~(...248...) \/ ...=0` — the cleanup
+   needs the matching not-taken consequent, which is the ASSUME'd `ja` (line 440), NOT a &248/&256
+   imp-consequent — so the cleanup's FIRST_X_ASSUM(248/256 imp) FAILS to find it and the SUBGOAL
+   cc=F can't close -> likely the hang/failure. FIX: the cleanup must also accept the already-proven
+   `ja` disjunction form (not just the `248<2EXP32 ==> ...` imp form) for mid-guards. Generalize
+   MEMSAFE_COND_CLEANUP_TAC to discharge cc=F from EITHER a `<imp> ==> ~disj` consequent OR a bare
+   ASSUME'd `~disj`-equivalent (the mid-guard `ja`). *)

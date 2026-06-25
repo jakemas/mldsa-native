@@ -358,6 +358,11 @@ let PREFIX_G_FULL_MS_TAC : tactic =
         can(find_term(fun u->match u with Const("TABLE_ENTRY",_)->true|_->false))(concl th)
         then th else REWRITE_RULE[GSYM m8def] th)) THEN
   (* === REORDERED branch resolution (NO RULE_ASSUM over s21 state) === *)
+  (fun g -> (let oc=open_out "/tmp/cs_probe_r9.txt" in
+     let (asl,_)=g in
+     output_string oc ("R9 s21 present: "^string_of_bool(exists(fun(_,th)->concl th = (try mk_eq(`read R9 s21`, rand(concl th)) with _->`T`) || (match concl th with Comb(Comb(Const("=",_),Comb(Comb(Const("read",_),Const("R9",_)),Var("s21",_))),_)->true|_->false))asl)^"\n");
+     output_string oc ("maskbit-shape present: "^string_of_bool(exists(fun(_,th)->let c=concl th in is_forall c && can(find_term(fun u->u=`f1bnd:int256`))c)asl)^"\n");
+     close_out oc); ALL_TAC g) THEN
   W(fun (asl,w) ->
     (* 1. popeq: word_popcount(word_zx^3(word(val mask8 MOD 256))) = bitsum8(low8 of f1bnd) *)
     let r9 = find (fun (_,th) -> match concl th with
@@ -444,6 +449,8 @@ let PREFIX_G_FULL_MS_TAC : tactic =
           Comb(Comb(Const("=",_),Comb(Const("word_zx",_),Comb(Comb(Const("word_add",_),_),_))),_) -> true | _ -> false) asl in
       let ja = find (fun (_,th) -> is_disj(concl th) &&
           can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th)) asl in
+      (let oc=open_out "/tmp/cs_s23rip.txt" in
+       output_string oc (String.concat "\n" (mapfilter (fun(_,th)-> if can(find_term(fun u->u=`read RIP s23`))(concl th) then string_of_term(concl th) else fail()) asl)); close_out oc);
       FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 163`))(concl th) && can(find_term(fun u->u=`read RIP s23`))(concl th) then MP_TAC th else NO_TAC) THEN
       REWRITE_TAC[GSYM(snd blk0)] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
