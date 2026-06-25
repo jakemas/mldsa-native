@@ -16,9 +16,10 @@ let MEMSAFE_COND_CLEANUP_TAC : tactic =
     | cc::_ ->
       (SUBGOAL_THEN (mk_eq(cc,`F`)) ASSUME_TAC THENL
         [REWRITE_TAC[] THEN
-         FIRST_X_ASSUM(fun th -> if is_imp(concl th) &&
+         (FIRST_X_ASSUM(fun th -> if is_imp(concl th) &&
               (can(find_term((=)`&248:int`))(concl th) || can(find_term((=)`&256:int`))(concl th))
-            then ACCEPT_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC);
+            then ACCEPT_TAC(MP th (EQT_ELIM(NUM_REDUCE_CONV(lhand(concl th))))) else NO_TAC)
+          ORELSE ASM_REWRITE_TAC[] ORELSE (ASM_REWRITE_TAC[] THEN ARITH_TAC));
          ALL_TAC] THEN
        RULE_ASSUM_TAC(REWRITE_RULE[ASSUME (mk_eq(cc,`F`)); COND_CLAUSES])) (asl,w);;
 
