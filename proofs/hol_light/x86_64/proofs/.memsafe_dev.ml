@@ -326,3 +326,19 @@ let clean_body_ms_tm =
         DISCHARGE_MEMSAFE_ASM_TAC per access + ACCEPT the e0 hyp]]].
    NOTE: also check X86_VSTEPS_TAC usage in SI tactics (VSTEPS = X86_VERBOSE_STEP, no discard,
    so those already keep events — only the plain X86_STEPS calls need swapping). *)
+
+(* _MS attempt (2026-06-25): created .prefix_g_full_tac_ms / .si{2,3,4}_integrated_ms with
+   X86_STEPS_TAC -> X86_STEPS_KEEPEV_TAC (def below) and tactic renamed *_MS. SI1_FOLD_V2
+   reused as-is (no stepping). KEEPEV primitives:
+     let X86_SINGLE_STEP_KEEPEV_TAC th s = time(X86_VERBOSE_STEP_TAC th s) THEN
+       DISCARD_OLDSTATE_KEEP_EVENTS_TAC s THEN CLARIFY_TAC;;
+     let X86_STEPS_KEEPEV_TAC th ns = MAP_EVERY (X86_SINGLE_STEP_KEEPEV_TAC th) (statenames "s" ns);;
+   RESULT: PREFIX_G_FULL_MS_TAC FAILS with `FAIL: REFL_TAC`. Cause: keeping events means the
+   `read events sN = CONS(EventJump(word(pc+K), <COND ...>)) ...` hyp embeds the raw RIP COND;
+   PREFIX's guard-resolution SUBGOALs end `...DISCH_THEN SUBST1_TAC THEN REFL_TAC` and the kept
+   events-COND breaks a downstream REFL (the COND isn't simplified in the events hyp).
+   FIX: after each guard's RIP resolution, also rewrite the EventJump COND in the events hyp to
+   the resolved target (mirror PR1014's cond_eq_clean: TRANS (SYM cond_th) clean_th then
+   RULE_ASSUM_TAC(REWRITE_RULE[cond_eq_clean])). i.e. PREFIX_G_FULL_MS needs the Jump-COND cleanup
+   applied to ASSUMPTIONS (incl events) at each of the head guards (s2->pc+63, s4->pc+75) and the
+   3 mid-guards inside SI2/SI3/SI4. Add this cleanup into the _ms tactic copies. *)
