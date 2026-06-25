@@ -249,3 +249,13 @@ let clean_body_ms_tm =
    SI2/SI3/SI4 each: vmovq table read + vmovdqu res write. After EACH store run DISCHARGE_MEMSAFE_ASM_TAC.
    Use DISCARD_OLDSTATE_KEEP_EVENTS_TAC instead of DISCARD_OLDSTATE_TAC throughout.
    Mid-guards after si1/2/3 (CMP eax,248;JA) not-taken via JA_NOT_TAKEN_LE on the running acc<=248. *)
+
+(* FINDING (2026-06-25): plain X86_STEPS_TAC (5--9) DISCARDS the events chain
+   (events s9 hyp gone) because it calls DISCARD_OLDSTATE internally. So the body
+   MUST be stepped either one-instruction-at-a-time with explicit
+   DISCARD_OLDSTATE_KEEP_EVENTS_TAC between steps, OR find the X86_STEPS variant
+   that preserves a named component. PR1014 steps singly around stores. The guard
+   steps (1--4) are fine (no mem events); the loss starts once SIMD/mem ops run.
+   Validated so far: walk reaches pc+75 (sub-iter 1 start, s4) with events tracked
+   through the 2 head guards. NEXT: single-step 5.. with KEEP_EVENTS; after the
+   vmovdqu store, DISCHARGE_MEMSAFE_ASM_TAC. *)
