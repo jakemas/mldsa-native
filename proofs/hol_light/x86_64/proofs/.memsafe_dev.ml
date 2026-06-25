@@ -401,3 +401,18 @@ let clean_body_ms_tm =
    before building mk_eq; or pick the OUTERMOST COND in the most-recent events hyp only.
    Also: head-guard-1 worked when run as the very first cleanup; subsequent guards have multiple
    events hyps (s2,s3,s4 chains) so `condapps` has several — should target the LATEST state's. *)
+
+(* PROGRESS 2026-06-25: with v3+typeguard cleanup embedded in _ms prefix, PREFIX_G_FULL_MS_TAC
+   now runs 61s (was <2s) — head guards + SI1 byte-extraction + 4 f0sub/f1bnd folds all PASS.
+   Failure advanced: REFL_TAC -> mk_comb -> `FAIL: tryfind`. The tryfind is in the post-SI1
+   region — most likely the s23 mid-guard block (lines ~414-426): it does
+     find blk0 (SUB_LIST(16*i,4) shape), find rax_red0 (word_zx(word_add..)), find ja (disj w/ word_sub)
+   one of these `find`s now fails. Likely cause: the kept events hyps OR the cleanup's RULE_ASSUM
+   rewrite altered/removed a hyp the find expects, OR an earlier guard's not-taken disjunction
+   (which the cleanup's FIRST_X_ASSUM consumed via MP) is no longer present for the `ja` find at
+   line 421. NOTE: cleanup uses FIRST_X_ASSUM(...ACCEPT...) which DELETES the matched not-taken
+   consequent — but the s23 guard's `ja` find may need a DIFFERENT disjunction still in asl.
+   NEXT: bisect by running prefix in chunks; check which `find` (blk0/rax_red0/ja) throws at s23.
+   Possible fix: cleanup should MP_TAC+re-ASSUME (not consume) the consequent, or use ASSUME copy.
+   STATE: head-guard COND cleanup fully working; SI1 fold reused intact; only post-SI1 find-shape
+   interaction remains. _ms files committed. *)
