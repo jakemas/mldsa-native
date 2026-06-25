@@ -306,3 +306,23 @@ let clean_body_ms_tm =
    asset tactics to *_MS variants that keep events, then the body proof = the chain above +
    RAX_FINAL + RCX_FINAL + [EXISTS chain; REWRITE MEMACCESS_INBOUNDS_APPEND; DISCHARGE_MEMSAFE_ASM_TAC].
    This is MUCH smaller than re-deriving the fold — the value machinery is 100% reused. *)
+
+(* WHY rebinding won't work: X86_STEPS_TAC -> X86_SINGLE_STEP_TAC -> DISCARD_OLDSTATE_TAC
+   are captured by-value when SI*_INTEGRATED were defined (OCaml early binding). Rebinding
+   the global DISCARD_OLDSTATE_TAC now does NOT change the frozen SI tactics. The events
+   equation is discarded because EventLoad operands reference old-state memory reads, so
+   DISCARD_OLDSTATE drops the `read events sN` hyp once those states are erased.
+   => CLEANEST FIX: define KEEP_EVENTS stepping primitives and *_MS copies of the SI asset
+   tactics that use them. Specifically build:
+     let X86_SINGLE_STEP_KEEPEV_TAC th s = time(X86_VERBOSE_STEP_TAC th s) THEN
+       DISCARD_OLDSTATE_KEEP_EVENTS_TAC s THEN CLARIFY_TAC;;
+     let X86_STEPS_KEEPEV_TAC th ns = MAP_EVERY (X86_SINGLE_STEP_KEEPEV_TAC th) (statenames "s" ns);;
+   then copy .si1_fold_v2/.si2_integrated/.si3_integrated/.si4_integrated/.prefix_g_full_tac
+   to *_MS variants with X86_STEPS_TAC->X86_STEPS_KEEPEV_TAC (and X86_VSTEPS similarly if used).
+   Body proof then = PREFIX_G_FULL_MS THEN SI1_FOLD_V2_MS THEN SI2/3/4_MS THEN
+     RULE_ASSUM_TAC(REWRITE[16i+16=16(i+1)]) THEN ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+     CONJ_TAC THENL[RAX_FINAL_TAC; CONJ_TAC THENL[RCX_FINAL_TAC;
+       <events: EXISTS the s57 chain minus e; REWRITE[MEMACCESS_INBOUNDS_APPEND];
+        DISCHARGE_MEMSAFE_ASM_TAC per access + ACCEPT the e0 hyp]]].
+   NOTE: also check X86_VSTEPS_TAC usage in SI tactics (VSTEPS = X86_VERBOSE_STEP, no discard,
+   so those already keep events — only the plain X86_STEPS calls need swapping). *)
