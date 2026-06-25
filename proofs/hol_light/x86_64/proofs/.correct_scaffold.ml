@@ -1,14 +1,14 @@
 (* ========================================================================= *)
 (* CORRECT scaffold (2026-06-23): the validated Phase-0/1/2 tactic chain that  *)
 (* reduces MLDSA_REJ_UNIFORM_ETA4_CORRECT to a SINGLE remaining goal — the     *)
-(* exit-block obligation `inv(N-1) @ pc+56 -> CORRECT-post @ pc+406`.           *)
+(* exit-block obligation `inv(N-1) @ pc+52 -> CORRECT-post @ pc+402`.           *)
 (*                                                                            *)
-(* Uses ENSURES_WHILE_UP_TAC (N-1) (pc+56)(pc+56) [NOT the old UP2-at-N which  *)
+(* Uses ENSURES_WHILE_UP_TAC (N-1) (pc+52)(pc+52) [NOT the old UP2-at-N which  *)
 (* mis-handles mid-block exits]. Body blocks 0..N-2 are all clean, discharged  *)
 (* by MLDSA_REJ_UNIFORM_ETA4_CLEAN_BODY (must be in scope — load .clean_body    *)
 (* chain first). G0/G1/G2/G3 of the loop all close; only the exit obligation   *)
-(* (the i=N-1 block stepped with per-guard branch analysis -> pc+318 at exit   *)
-(* position p, then SCALAR_TAIL_AT_P -> pc+406) remains = the exit-block proof. *)
+(* (the i=N-1 block stepped with per-guard branch analysis -> pc+314 at exit   *)
+(* position p, then SCALAR_TAIL_AT_P -> pc+402) remains = the exit-block proof. *)
 (*                                                                            *)
 (* Prerequisites in session: main eta4 file; the full CLEAN_BODY chain (so     *)
 (* MLDSA_REJ_UNIFORM_ETA4_CLEAN_BODY is proven); .scalar_tail_run.ml           *)
@@ -52,12 +52,12 @@ let CORRECT_SCAFFOLD_TAC : tactic =
     ASM_REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES] THEN
     REWRITE_TAC[ARITH_RULE `16 * 1 = 16`] THEN ARITH_TAC; ALL_TAC] THEN
   (* Phase 2: clean-block loop over N-1 iterations *)
-  ENSURES_WHILE_UP_TAC `N - 1` `pc + 56` `pc + 56` CORRECT_LOOPINV THEN
+  ENSURES_WHILE_UP_TAC `N - 1` `pc + 52` `pc + 52` CORRECT_LOOPINV THEN
   REPEAT CONJ_TAC THENL
    [(* G0 ~(N-1=0) *)
     REPEAT(FIRST_X_ASSUM(MP_TAC o check(fun th->concl th=`~(N=0)`||concl th=`~(N=1)`))) THEN ARITH_TAC;
-    (* G1 init pc -> pc+56 *)
-    ENSURES_INIT_TAC "s0" THEN X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (1--12) THEN
+    (* G1 init pc -> pc+52 *)
+    ENSURES_INIT_TAC "s0" THEN X86_STEPS_TAC MLDSA_REJ_UNIFORM_ETA4_EXEC (1--11) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
     REWRITE_TAC[MULT_CLAUSES; ADD_CLAUSES; SUB_LIST_CLAUSES; REJ_SAMPLE_ETA4_BYTES; REJ_NIBBLES_ETA4;
                 NIBBLES_OF_BYTES; FILTER; MAP; LENGTH; num_of_wordlist] THEN
@@ -84,5 +84,5 @@ let CORRECT_SCAFFOLD_TAC : tactic =
     ANTS_TAC THENL [ASM_ARITH_TAC; REWRITE_TAC[]]; ALL_TAC] THEN
   SUBGOAL_THEN `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*(N-1)) inlist):int32 list) <= 248` ASSUME_TAC THENL
    [ASM_REWRITE_TAC[LENGTH_REJ_SAMPLE_ETA4_BYTES]; ALL_TAC];;
-(* Remaining after CORRECT_SCAFFOLD_TAC: the single exit-block goal at pc+56,
-   pos=16(N-1), niblen<=248 -> CORRECT-post@pc+406. *)
+(* Remaining after CORRECT_SCAFFOLD_TAC: the single exit-block goal at pc+52,
+   pos=16(N-1), niblen<=248 -> CORRECT-post@pc+402. *)

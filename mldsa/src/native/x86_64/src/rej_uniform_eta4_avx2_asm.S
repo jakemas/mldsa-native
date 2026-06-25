@@ -18,221 +18,128 @@
  */
 
 #include "../../../common.h"
-#if defined(MLD_ARITH_BACKEND_X86_64_DEFAULT) && \
-    !defined(MLD_CONFIG_NO_KEYPAIR_API) &&       \
-    !defined(MLD_CONFIG_MULTILEVEL_NO_SHARED) && \
-    (defined(MLD_CONFIG_MULTILEVEL_WITH_SHARED) || MLDSA_ETA == 4)
-/* simpasm: header-end */
-
-#define out %rdi
-#define in %rsi
-#define tab %rdx
-
-#define ctr %eax
-#define pos %ecx
-
-#define good %r8d
-#define cnt %r9d
-#define tmp %r10
-#define val %r11d
-
-#define f0 %ymm0
-#define f1 %ymm1
-#define mask %ymm2
-#define eta %ymm3
-#define bound %ymm4
-#define g0 %xmm5
-#define g1 %xmm6
-
-        .text
+#if defined(MLD_ARITH_BACKEND_X86_64_DEFAULT) && !defined(MLD_CONFIG_MULTILEVEL_NO_SHARED)
 
 /*
- * unsigned mld_rej_uniform_eta4_avx2_asm(int32_t *r, const uint8_t *buf,
- *                                        const uint8_t *table)
- *
- * Rejection sampling for ETA=4 polynomial coefficients.
- * Extracts 4-bit nibbles from a byte buffer and accepts those < 9.
- * Output: coefficient = 4 - nibble, producing values in [-4, 4].
- *
- * Arguments:   out (rdi): pointer to output coefficient array r (256 x int32_t)
- *              in  (rsi): pointer to input byte buffer buf (272 bytes)
- *              tab (rdx): pointer to rejection sampling lookup table (256x8 bytes)
- *
- * Returns:     ctr (eax): number of valid coefficients written to r
+ * WARNING: This file is auto-derived from the mldsa-native source file
+ *   dev/x86_64/src/rej_uniform_eta4_avx2_asm.S using scripts/simpasm. Do not modify it directly.
  */
-        .balign 4
-        .global MLD_ASM_NAMESPACE(rej_uniform_eta4_avx2_asm)
+
+.text
+.balign 4
+.global MLD_ASM_NAMESPACE(rej_uniform_eta4_avx2_asm)
 MLD_ASM_FN_SYMBOL(rej_uniform_eta4_avx2_asm)
 
-        endbr64
+        .cfi_startproc
+        movl $0xf0f0f0f, %r8d        # imm = 0xF0F0F0F
+        vmovd %r8d, %xmm2
+        vpbroadcastd %xmm2, %ymm2
+        movl $0x4040404, %r8d        # imm = 0x4040404
+        vmovd %r8d, %xmm3
+        vpbroadcastd %xmm3, %ymm3
+        movl $0x9090909, %r8d        # imm = 0x9090909
+        vmovd %r8d, %xmm4
+        vpbroadcastd %xmm4, %ymm4
+        xorl %eax, %eax
+        xorl %ecx, %ecx
 
-// Construct broadcast constants
-        movl    $0x0F0F0F0F, good
-        vmovd   good, %xmm2
-        vpbroadcastd %xmm2, mask              // mask: extract low 4 bits from each byte
+Lrej_uniform_eta4_avx2_asm_loop:
+        cmpl $0xf8, %eax
+        ja Lrej_uniform_eta4_avx2_asm_scalar
+        cmpl $0x100, %ecx            # imm = 0x100
+        ja Lrej_uniform_eta4_avx2_asm_scalar
+        vpmovzxbw (%rsi,%rcx), %ymm0
+        vpsllw $0x4, %ymm0, %ymm1
+        vpor %ymm1, %ymm0, %ymm0
+        vpand %ymm2, %ymm0, %ymm0
+        vpsubb %ymm4, %ymm0, %ymm1
+        vpsubb %ymm0, %ymm3, %ymm0
+        vpmovmskb %ymm1, %r8d
+        vextracti128 $0x0, %ymm0, %xmm5
+        movzbl %r8b, %r10d
+        vmovq (%rdx,%r10,8), %xmm6
+        vpshufb %xmm6, %xmm5, %xmm6
+        vpmovsxbd %xmm6, %ymm1
+        vmovdqu %ymm1, (%rdi,%rax,4)
+        popcntl %r10d, %r9d
+        addl %r9d, %eax
+        shrl $0x8, %r8d
+        addl $0x4, %ecx
+        cmpl $0xf8, %eax
+        ja Lrej_uniform_eta4_avx2_asm_scalar
+        vpsrldq $0x8, %xmm5, %xmm5      # xmm5 = xmm5[8,9,10,11,12,13,14,15],zero,zero,zero,zero,zero,zero,zero,zero
+        movzbl %r8b, %r10d
+        vmovq (%rdx,%r10,8), %xmm6
+        vpshufb %xmm6, %xmm5, %xmm6
+        vpmovsxbd %xmm6, %ymm1
+        vmovdqu %ymm1, (%rdi,%rax,4)
+        popcntl %r10d, %r9d
+        addl %r9d, %eax
+        shrl $0x8, %r8d
+        addl $0x4, %ecx
+        cmpl $0xf8, %eax
+        ja Lrej_uniform_eta4_avx2_asm_scalar
+        vextracti128 $0x1, %ymm0, %xmm5
+        movzbl %r8b, %r10d
+        vmovq (%rdx,%r10,8), %xmm6
+        vpshufb %xmm6, %xmm5, %xmm6
+        vpmovsxbd %xmm6, %ymm1
+        vmovdqu %ymm1, (%rdi,%rax,4)
+        popcntl %r10d, %r9d
+        addl %r9d, %eax
+        shrl $0x8, %r8d
+        addl $0x4, %ecx
+        cmpl $0xf8, %eax
+        ja Lrej_uniform_eta4_avx2_asm_scalar
+        vpsrldq $0x8, %xmm5, %xmm5      # xmm5 = xmm5[8,9,10,11,12,13,14,15],zero,zero,zero,zero,zero,zero,zero,zero
+        movzbl %r8b, %r10d
+        vmovq (%rdx,%r10,8), %xmm6
+        vpshufb %xmm6, %xmm5, %xmm6
+        vpmovsxbd %xmm6, %ymm1
+        vmovdqu %ymm1, (%rdi,%rax,4)
+        popcntl %r10d, %r9d
+        addl %r9d, %eax
+        addl $0x4, %ecx
+        jmp Lrej_uniform_eta4_avx2_asm_loop
 
-        movl    $0x04040404, good
-        vmovd   good, %xmm3
-        vpbroadcastd %xmm3, eta               // eta: broadcast ETA=4
+Lrej_uniform_eta4_avx2_asm_scalar:
+        cmpl $0x100, %eax            # imm = 0x100
+        jae Lrej_uniform_eta4_avx2_asm_done
+        cmpl $0x110, %ecx            # imm = 0x110
+        jae Lrej_uniform_eta4_avx2_asm_done
+        movzbl (%rsi,%rcx), %r11d
+        incl %ecx
+        movl %r11d, %r10d
+        andl $0xf, %r10d
+        cmpl $0x9, %r10d
+        jae Lrej_uniform_eta4_avx2_asm_high_nibble
+        movl $0x4, %r9d
+        subl %r10d, %r9d
+        movl %r9d, (%rdi,%rax,4)
+        incl %eax
+        cmpl $0x100, %eax            # imm = 0x100
+        jae Lrej_uniform_eta4_avx2_asm_done
 
-        movl    $0x09090909, good
-        vmovd   good, %xmm4
-        vpbroadcastd %xmm4, bound             // bound: rejection threshold (9)
+Lrej_uniform_eta4_avx2_asm_high_nibble:
+        shrl $0x4, %r11d
+        andl $0xf, %r11d
+        cmpl $0x9, %r11d
+        jae Lrej_uniform_eta4_avx2_asm_scalar
+        movl $0x4, %r10d
+        subl %r11d, %r10d
+        movl %r10d, (%rdi,%rax,4)
+        incl %eax
+        jmp Lrej_uniform_eta4_avx2_asm_scalar
 
-// Initialize counters
-        xorl    ctr, ctr                       // ctr = 0
-        xorl    pos, pos                       // pos = 0
+Lrej_uniform_eta4_avx2_asm_done:
+        retq
+        .cfi_endproc
 
-/*
- * Main SIMD loop: process 16 input bytes into 32 nibbles, producing up to
- * 32 coefficients per iteration (4 sub-iterations of 8 nibbles each).
- *
- * Loop-head guards: ctr <= MLDSA_N - 8 = 248 and pos <= BUFLEN - 16 = 256.
- *
- * Mid-iter early exits at ctr > 248 prevent buffer overshoot: each sub-iter
- * stores 8 ints starting at r[ctr], and ctr advances by popcount(<= 8). With
- * ctr <= 248 entering a sub-iter, the store touches r[248..256] — exactly
- * fitting the 256-int output buffer.
- */
-rej_uniform_eta4_avx2_asm_loop:
-        cmpl    $248, ctr                      // MLDSA_N - 8
-        ja      rej_uniform_eta4_avx2_asm_scalar
-        cmpl    $256, pos                      // MLD_AVX2_REJ_UNIFORM_ETA4_BUFLEN - 16
-        ja      rej_uniform_eta4_avx2_asm_scalar
+MLD_ASM_FN_SIZE(rej_uniform_eta4_avx2_asm)
 
-        // Load 16 bytes and extract 32 nibbles into f0
-        vpmovzxbw (in, %rcx), f0               // load 16 bytes, zero-extend to 16 words
-        vpsllw  $4, f0, f1                     // shift left by 4 to align high nibbles
-        vpor    f1, f0, f0                     // OR: each word now has nibble duplicated
-        vpand   mask, f0, f0                   // mask to get 4 bits per byte
+#endif /* MLD_ARITH_BACKEND_X86_64_DEFAULT && !MLD_CONFIG_MULTILEVEL_NO_SHARED \
+        */
 
-        // Check which nibbles are < 9 and compute eta - nibble
-        vpsubb  bound, f0, f1                  // f1 = nibble - 9 (negative if valid)
-        vpsubb  f0, eta, f0                    // f0 = 4 - nibble
-        vpmovmskb f1, good                     // extract sign bits (valid = 1)
-
-        // Sub-iter 1: extract low 128 bits of f0; process bits 0..7 of mask
-        vextracti128 $0, f0, g0
-        movzbl  %r8b, %r10d                    // tmp = good & 0xFF
-        vmovq   (tab, tmp, 8), g1              // g1 = table[good & 0xFF] (8 byte indices)
-        vpshufb g1, g0, g1                     // compact accepted nibbles to front
-        vpmovsxbd g1, f1                       // sign-extend 8 bytes -> 8 int32
-        vmovdqu f1, (out, %rax, 4)             // store 8 ints at r[ctr]
-        popcntl %r10d, cnt                     // cnt = popcount(good & 0xFF)
-        addl    cnt, ctr                       // ctr += cnt
-        shrl    $8, good                       // shift good for next sub-iter
-        addl    $4, pos                        // 4 input bytes consumed
-
-        cmpl    $248, ctr                      // mid-iter exit if ctr > 248
-        ja      rej_uniform_eta4_avx2_asm_scalar
-
-        // Sub-iter 2: shift xmm5 down by 8 bytes; process next 8 bits of mask
-        vpsrldq $8, g0, g0
-        movzbl  %r8b, %r10d
-        vmovq   (tab, tmp, 8), g1
-        vpshufb g1, g0, g1
-        vpmovsxbd g1, f1
-        vmovdqu f1, (out, %rax, 4)
-        popcntl %r10d, cnt
-        addl    cnt, ctr
-        shrl    $8, good
-        addl    $4, pos
-
-        cmpl    $248, ctr
-        ja      rej_uniform_eta4_avx2_asm_scalar
-
-        // Sub-iter 3: extract high 128 bits of f0
-        vextracti128 $1, f0, g0
-        movzbl  %r8b, %r10d
-        vmovq   (tab, tmp, 8), g1
-        vpshufb g1, g0, g1
-        vpmovsxbd g1, f1
-        vmovdqu f1, (out, %rax, 4)
-        popcntl %r10d, cnt
-        addl    cnt, ctr
-        shrl    $8, good
-        addl    $4, pos
-
-        cmpl    $248, ctr
-        ja      rej_uniform_eta4_avx2_asm_scalar
-
-        // Sub-iter 4: shift xmm5 down by 8 bytes; process final 8 bits of mask
-        vpsrldq $8, g0, g0
-        movzbl  %r8b, %r10d
-        vmovq   (tab, tmp, 8), g1
-        vpshufb g1, g0, g1
-        vpmovsxbd g1, f1
-        vmovdqu f1, (out, %rax, 4)
-        popcntl %r10d, cnt
-        addl    cnt, ctr
-        addl    $4, pos
-
-        jmp     rej_uniform_eta4_avx2_asm_loop
-
-/*
- * Scalar fallback loop: process remaining bytes one nibble at a time.
- * Each byte contains two 4-bit nibbles (low and high), each accepted iff < 9.
- */
-rej_uniform_eta4_avx2_asm_scalar:
-        cmpl    $256, ctr                      // MLDSA_N
-        jae     rej_uniform_eta4_avx2_asm_done
-        cmpl    $272, pos                      // MLD_AVX2_REJ_UNIFORM_ETA4_BUFLEN
-        jae     rej_uniform_eta4_avx2_asm_done
-
-        movzbl  (in, %rcx), val                // load 1 byte
-        incl    pos
-
-        // Process low nibble
-        movl    val, %r10d
-        andl    $0x0F, %r10d                   // extract low 4 bits
-        cmpl    $9, %r10d
-        jae     rej_uniform_eta4_avx2_asm_high_nibble
-
-        movl    $4, cnt
-        subl    %r10d, cnt                     // 4 - nibble
-        movl    cnt, (out, %rax, 4)
-        incl    ctr
-
-        cmpl    $256, ctr
-        jae     rej_uniform_eta4_avx2_asm_done
-
-rej_uniform_eta4_avx2_asm_high_nibble:
-        // Process high nibble
-        shrl    $4, val
-        andl    $0x0F, val
-        cmpl    $9, val
-        jae     rej_uniform_eta4_avx2_asm_scalar
-
-        movl    $4, %r10d
-        subl    val, %r10d                     // 4 - nibble
-        movl    %r10d, (out, %rax, 4)
-        incl    ctr
-
-        jmp     rej_uniform_eta4_avx2_asm_scalar
-
-rej_uniform_eta4_avx2_asm_done:
-        ret
-
-/* To facilitate single-compilation-unit (SCU) builds, undefine all macros.
- * Don't modify by hand -- this is auto-generated by scripts/autogen. */
-#undef out
-#undef in
-#undef tab
-#undef ctr
-#undef pos
-#undef good
-#undef cnt
-#undef tmp
-#undef val
-#undef f0
-#undef f1
-#undef mask
-#undef eta
-#undef bound
-#undef g0
-#undef g1
-
-/* simpasm: footer-start */
-#endif /* MLD_ARITH_BACKEND_X86_64_DEFAULT && !MLD_CONFIG_NO_KEYPAIR_API && \
-          !MLD_CONFIG_MULTILEVEL_NO_SHARED &&                               \
-          (MLD_CONFIG_MULTILEVEL_WITH_SHARED || MLDSA_ETA == 4) */
+#if defined(__ELF__)
+.section .note.GNU-stack,"",%progbits
+#endif
