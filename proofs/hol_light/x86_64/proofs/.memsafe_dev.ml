@@ -445,3 +445,15 @@ let clean_body_ms_tm =
    `ja` disjunction form (not just the `248<2EXP32 ==> ...` imp form) for mid-guards. Generalize
    MEMSAFE_COND_CLEANUP_TAC to discharge cc=F from EITHER a `<imp> ==> ~disj` consequent OR a bare
    ASSUME'd `~disj`-equivalent (the mid-guard `ja`). *)
+
+(* PROGRESS 2026-06-25 (cont): restricting the s23 `find ja` to the outlen0-disjunction
+   (add `can(find_term(fun u->u=`outlen0:num`))(concl th)`) got PAST the s23 guard.
+   Failure advanced tryfind -> `FAIL: CHOOSE`. The CHOOSE is in the post-s23 RAX-fold region
+   (.prefix_g_full_tac_ms.ml ~lines 458+) — a value-fold step doing X_CHOOSE/CHOOSE on a witness
+   that the kept events hyps perturb (likely an `?x. ...` the fold expects exactly one of, or the
+   events `exists e_acc` precondition leftover got grabbed). NEXT: find the CHOOSE in lines 458-480
+   and ensure it targets the value witness, not the events existential.
+   FAILURE-POINT PROGRESSION (each fix advances): REFL_TAC -> mk_comb(cc-type guard) ->
+   tryfind(s23 find ja restricted to outlen0) -> CHOOSE(post-s23 fold). The _MS adaptation is
+   working; each guard/fold has a small kept-events interaction needing a targeted find-restriction.
+   ~85% through PREFIX_G_FULL_MS. *)

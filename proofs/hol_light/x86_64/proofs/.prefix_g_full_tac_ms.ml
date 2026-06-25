@@ -449,7 +449,8 @@ let PREFIX_G_FULL_MS_TAC : tactic =
       let rax_red0 = find (fun (_,th) -> match concl th with
           Comb(Comb(Const("=",_),Comb(Const("word_zx",_),Comb(Comb(Const("word_add",_),_),_))),_) -> true | _ -> false) asl in
       let ja = find (fun (_,th) -> is_disj(concl th) &&
-          can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th)) asl in
+          can(find_term(fun u->match u with Const("word_sub",_)->true|_->false))(concl th) &&
+          can(find_term(fun u->u=`outlen0:num`))(concl th)) asl in
       (let oc=open_out "/tmp/cs_s23rip.txt" in
        output_string oc (String.concat "\n" (mapfilter (fun(_,th)-> if can(find_term(fun u->u=`read RIP s23`))(concl th) then string_of_term(concl th) else fail()) asl)); close_out oc);
       FIRST_ASSUM(fun th -> if can(find_term(fun u->u=`pc + 163`))(concl th) && can(find_term(fun u->u=`read RIP s23`))(concl th) then MP_TAC th else NO_TAC) THEN
