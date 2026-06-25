@@ -457,7 +457,9 @@ let PREFIX_G_FULL_MS_TAC : tactic =
       REWRITE_TAC[GSYM(snd blk0)] THEN REWRITE_TAC[snd rax_red0] THEN
       REWRITE_TAC[snd ja] THEN DISCH_THEN SUBST1_TAC THEN REFL_TAC);
     ALL_TAC] THEN
+  (fun g -> (let oc=open_out "/tmp/cs_pre_clean23.txt" in output_string oc "reached pre-s23-cleanup"; close_out oc); ALL_TAC g) THEN
   MEMSAFE_COND_CLEANUP_TAC THEN
+  (fun g -> (let oc=open_out "/tmp/cs_post_clean23.txt" in output_string oc "s23 cleanup done"; close_out oc); ALL_TAC g) THEN
   (* fold RAX read clean using the assumed pop_len + rax_red0 (now in asl) *)
   W(fun (asl,w) ->
     let pl = find (fun (_,th) -> match concl th with

@@ -457,3 +457,20 @@ let clean_body_ms_tm =
    tryfind(s23 find ja restricted to outlen0) -> CHOOSE(post-s23 fold). The _MS adaptation is
    working; each guard/fold has a small kept-events interaction needing a targeted find-restriction.
    ~85% through PREFIX_G_FULL_MS. *)
+
+(* CHOOSE LOCALIZED (2026-06-25): probes /tmp/cs_pre_clean23.txt + /tmp/cs_post_clean23.txt BOTH
+   fired -> the s23 MEMSAFE_COND_CLEANUP_TAC COMPLETES. The `FAIL: CHOOSE` is in the FINAL
+   RAX-fold of PREFIX_G_FULL_MS (.prefix_g_full_tac_ms.ml lines ~462-467):
+     W(fun(asl,w)-> let pl=find(word_popcount = _) ; let rr=find(word_zx(word_add..)=_) ;
+        RULE_ASSUM_TAC(REWRITE_RULE[snd pl]) THEN RULE_ASSUM_TAC(REWRITE_RULE[snd rr]))
+   The CHOOSE comes from RULE_ASSUM_TAC(REWRITE_RULE[snd pl/rr]) being applied to the kept events
+   `exists e_acc. read events s = APPEND e_acc e /\ memaccess_inbounds...` precondition-style hyp
+   (or the `read events sN = CONS(...)` chain): REWRITE_RULE descending under the existential /
+   the CONS chain triggers a CHOOSE-based congruence failure. FIX OPTIONS: (a) before the fold,
+   move the events hyps out of asl (e.g. wrap fold's RULE_ASSUM_TAC to SKIP events hyps — use a
+   filtered RULE_ASSUM that leaves `read events`/`exists e_acc` hyps untouched), or (b) do the
+   RAX-fold rewrite only on the RAX hyp (FIRST_X_ASSUM targeting `read RAX s23`) instead of
+   RULE_ASSUM_TAC over ALL asms. (b) is cleaner: replace the blanket RULE_ASSUM_TAC with a
+   targeted rewrite of just the RAX-read hyp.
+   FAILURE PROGRESSION: REFL->mk_comb->tryfind->CHOOSE, now at the very LAST step of PREFIX_MS.
+   Essentially PREFIX_G_FULL_MS is ~95% working — one targeted-rewrite fix from completing. *)
