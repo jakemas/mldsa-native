@@ -717,3 +717,25 @@ let clean_body_ms_tm =
    events-hyp-aware (skip/stash the events eq during that op). The interference points are NARROW
    (one op per sub-iter fold) — finite, not infinite. Resume there with a FRESH session (setup driver)
    to avoid the degraded-redef state. *)
+
+(* REPRODUCIBILITY CAVEAT (2026-06-26): interactive `loadt` of the main file + manual reload of
+   _MS tactics gives INCONSISTENT results vs the staged driver (.memsafe_driver.ml). In the driver
+   (fresh session, ordered: main->consttime->helpers->KEEPEV->clean_body_ms_tm->prefix_ms->si*_ms),
+   the staged log showed `STAGE OK: PREFIX`, `STAGE OK: SI1`, then `STAGE FAIL SI2: mk_comb`.
+   But in a hand-driven session, PREFIX_G_FULL_MS_TAC fails at CHOOSE — because the main file's
+   internal helpers / abbrev state differ from the driver's clean order. LESSON: ONLY trust the
+   staged driver. Do NOT debug interactively (redefs + load-order corrupt the result).
+   CANONICAL HARNESS = .memsafe_driver.ml (staged `stage` logging to /tmp/memsafe_drv.log).
+   DEFINITIVE STATE: in the driver, PREFIX + SI1 PASS; SI2 fails at mk_comb (first VSTEPS or store).
+   prefix_g_full_tac_ms.ml is now self-contained (defines X86_STEPS_KEEPEV_TAC).
+   NEXT ACTIONABLE (driver-based, one cycle each ~12min):
+   1. Run driver, confirm PREFIX+SI1 OK, SI2 fails (baseline).
+   2. In .si2_integrated_ms.ml, the failing op is the bare X86_VSTEPS(24) / store with events present.
+      FIX to try: replace SI2's value-fold-internal RULE_ASSUM/COMPONENT ops that touch events with
+      events-skipping variants (the MOVZBL_R10_CAPTURE_MS pattern: RULE_ASSUM that skips hyps with
+      `events` in concl). Specifically wrap any RULE_ASSUM_TAC(REWRITE_RULE ...) in SI2 body to skip
+      events hyps. The X86_VSTEPS itself: if IT fails (not a RULE_ASSUM), the verbose stepper's conv
+      hits the events hyp — try X86_STEPS_KEEPEV_TAC instead of X86_VSTEPS_TAC for that step (KEEPEV
+      uses X86_VERBOSE_STEP + KEEP-EVENTS discard, should be conv-compatible).
+   3. Repeat for SI3/SI4 (same pattern). Then clean_body_ms_tm proves; move to scaffold (#22).
+   This is a finite sequence of driver cycles, fully specified. *)
