@@ -655,3 +655,23 @@ let clean_body_ms_tm =
    The pointwise_avx2_asm.ml MEMSAFE proof (committed, cheat-free) is the exact template once that
    tooling is present. Until then, the eta4 MEMSAFE stubs remain CHEAT_TAC (deferred, as originally
    scoped). CORRECT is fully cheat-free and nix-building — that milestone stands. *)
+
+(* ★★ DECISIVE (2026-06-26): the AUTOMATED mk_safety_spec + PROVE_SAFETY_SPEC_TAC approach
+   CANNOT prove eta4 MEMSAFE. Two hard blocks:
+   1. The shimmed X86_SINGLE_STEP_TAC (eta4 main file's, knows r8b) DOES fix the register_size r8b
+      decode failure — pass it via GEN_PROVE_SAFETY_SPEC_TAC (not the vanilla PROVE_SAFETY_SPEC_TAC
+      which uses the unshimmed X86_SINGLE_STEP_TAC). With it, stepping reaches s28 (was s24).
+      NOTE: eb5843f's REGISTER_ALIASES does NOT include r8b..r15b/r8w..r15w (only al..dil), so even
+      the build's vanilla OPERAND_SIZE_CONV fails on r8b — the eta4 main-file shim is REQUIRED.
+   2. FATAL: at s28 (sub-iter-1 store vmovdqu [rdi+rax*4]) -> `could not prove that updates will not
+      modify the program code`. The store offset is DATA-DEPENDENT (rax = accept count); proving it
+      doesn't hit code needs rax<=248. PROVE_SAFETY_SPEC_TAC does PURE LINEAR symbolic stepping and
+      (a) has no accept-count bound, (b) mk_safety_spec produces a FLAT (loop-free) spec pc->pc+len,
+      so it can't even handle eta4's loop (jmp back-edge). It's designed for STRAIGHT-LINE code
+      (pointwise/ntt have fixed-offset stores, no data-dependent loop).
+   => CONCLUSION: eta4 MEMSAFE REQUIRES the manual loop-aware proof (scaffold + body + exit-block,
+   events-strengthened), and the events tracking FUNDAMENTALLY couples with the accept-count value
+   invariant at both the mid-guards AND the stores (store-noncode needs rax<=248). No automated or
+   lean shortcut exists. Revert to tasks #14-20 manual plan with the events-stash/decoupled design.
+   The mk_safety_spec machinery + the eta4 sig entry remain useful for DERIVING the final SAFE-shaped
+   spec from the proven core MEMSAFE (the spec SHAPE is auto-generated correctly). *)
