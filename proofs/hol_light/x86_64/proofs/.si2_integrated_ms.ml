@@ -13,6 +13,10 @@ let SI2_INTEGRATED_MS : tactic =
   ACC1_IDENT_TAC THEN
   RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `LENGTH(REJ_SAMPLE_ETA4_BYTES(SUB_LIST(0,16*i+4) inlist):int32 list) = acc1`]) THEN
   si2mk "/tmp/si2_acc1.txt" "acc1 done" THEN
+  (fun (asl,w) -> (let oc=open_out "/tmp/si2_goal24.txt" in
+     output_string oc ("=== GOAL before step 24 ===\nCONCL: "^string_of_term w^"\n\nHYPS:\n");
+     List.iter (fun (n,th) -> output_string oc ("["^n^"] "^string_of_term(concl th)^"\n")) asl;
+     close_out oc); ALL_TAC (asl,w)) THEN
   X86_VSTEPS_TAC EXEC (24--24) THEN
   si2mk "/tmp/si2_v24.txt" "vstep24 done" THEN
   X86_VERBOSE_STEP_TAC EXEC "s25" THEN

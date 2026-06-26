@@ -739,3 +739,26 @@ let clean_body_ms_tm =
       uses X86_VERBOSE_STEP + KEEP-EVENTS discard, should be conv-compatible).
    3. Repeat for SI3/SI4 (same pattern). Then clean_body_ms_tm proves; move to scaffold (#22).
    This is a finite sequence of driver cycles, fully specified. *)
+
+(* ★ BREAKTHROUGH (2026-06-26, driver-confirmed): the SI2 `mk_comb` is NOT an events-conv issue!
+   Driver (reliable) shows PREFIX + SI1 PASS cleanly (no CHOOSE — that was interactive stale-state).
+   At SI2 step `X86_VSTEPS_TAC EXEC (24--24)`, the GOAL (dumped /tmp/si2_goal24.txt) is NOT an
+   `eventually`/`ensures` goal — it's a LEFTOVER ARITHMETIC SUBGOAL: the mid-guard-1 JA-not-taken
+   disjunction `~(&(val(word_zx(word_add(word_zx(word outlen0))(...niblen block0...)))) - &248 = ...)
+   \/ val(word_sub(...)) = 0` (the s23 guard condition, in unfolded outlen0+niblen(block0) form).
+   X86_VSTEPS applied to an arithmetic goal -> mk_comb (it expects eventually).
+   The hyps INCLUDE `acc1 <= 248` AND the same disjunction already proven in `word acc1` form.
+   So a PRIOR step (SI1 area / s23 guard handling under the events goal) left an EXTRA subgoal that
+   the value-only CLEAN_BODY discharges but the MS chain does not. ROOT: likely SI1_FOLD_V2's
+   THENL[PF_PROOF; ALL_TAC] or the events-strengthened pre/post created an extra branch, and the
+   guard's JA-disjunction (normally auto-discharged by the stepper's JA resolution using acc1<=248)
+   is left dangling because the events conjunct shifted the subgoal structure.
+   FIX (simple, NOT whack-a-mole): before SI2's step 24, discharge this leftover disjunction:
+   it follows from `acc1<=248` via JA_NOT_TAKEN_LE + the acc1=outlen0+niblen(block0) fold. Insert
+   at SI2 start (after acc1 setup):
+     TRY(W(fun(asl,w)-> if is_disj w && can(find_term(fun t->t=`word_sub`...))w
+        then (rewrite CONCL via acc1-fold then MATCH the acc1<=248 JA hyp / ARITH_TAC) else NO_TAC))
+   OR more simply: the disjunction = NOT-taken from acc1<=248; close with the hyp form:
+     FIRST_ASSUM(fun th-> if is_disj(concl th) && has word_sub & acc1 then ACCEPT_TAC(rewrite to match) ).
+   This is the ACTUAL blocker and it's a 1-tactic fix. Next driver cycle: add the discharge to
+   .si2_integrated_ms.ml start and re-run. *)
