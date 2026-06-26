@@ -705,3 +705,15 @@ let clean_body_ms_tm =
    comparable to ~1/3 of the CLEAN_BODY effort (no folds, just steps+guards+discharge). Tractable
    but multi-hour. Do it file-based via .memsafe_setup.ml + a dedicated .events_body.ml, NOT
    interactively (session degrades). *)
+
+(* CIRCULARITY (2026-06-26): the pure-events walk does NOT escape the value coupling. Even with
+   acc_k<=248 bounds supplied as hyps, the mid-guard `cmp eax,248` resolution needs rax = word(acc_k)
+   at that point, but the events walk computes rax as the raw popcount-add expression — rewriting it
+   to word(acc_k) IS the SI fold. So events tracking through the loop body inherently requires the
+   value fold at the guards/stores. NO clean decoupling exists.
+   => The actual path IS the whack-a-mole: track events alongside the value proof, patch each
+   value-fold/events-hyp interference. Prefix already fully passes. Remaining: SI1 CHOOSE + SI2
+   mk_comb + (likely) SI3/SI4 similar. Fix at source: make the specific failing operations
+   events-hyp-aware (skip/stash the events eq during that op). The interference points are NARROW
+   (one op per sub-iter fold) — finite, not infinite. Resume there with a FRESH session (setup driver)
+   to avoid the degraded-redef state. *)
