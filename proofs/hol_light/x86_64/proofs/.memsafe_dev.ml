@@ -587,3 +587,29 @@ let clean_body_ms_tm =
    ONLY (no value tactics) BUT with guard-resolution supplied as ASSUMED bounds (curlen<=248 etc.
    passed in as hyps), so the events walk needs no fold — the bounds come free from the value proof
    run separately, then both compose via ENSURES conjunction (same trace). *)
+
+(* ★★ DECISIVE (2026-06-25): in a FRESH clean session, PREFIX_G_FULL_MS_TAC alone now FAILS at
+   CHOOSE (earlier same file passed prefix + reached SI2). And SI1_FOLD_V2 with events fails at
+   CHOOSE. Conclusion: threading the events hyp THROUGH the value-fold tactics is FUNDAMENTALLY
+   UNSTABLE — the same tactic passes/fails depending on subtle hyp ordering, and every value-fold
+   conversion (RULE_ASSUM, REWRITE_RULE, X86_VSTEPS, COMPONENT_READ_OVER_WRITE, the store-fold's
+   CHOOSE/MP chains) is a trip point on the events term. NOT a robust path.
+   X86_STEPS_KEEPEV (1--4) also fails (tryfind) — guards need RIP resolved between steps.
+   => MANDATORY DECOUPLED DESIGN (the ONLY robust path):
+   Prove TWO separate ensures over the SAME pc+52->pc+52 transition, then conjoin:
+     (A) VALUE: exactly MLDSA_REJ_UNIFORM_ETA4_CLEAN_BODY (already proven, events in its MAYCHANGE
+         frame so events may change). UNCHANGED.
+     (B) EVENTS: a NEW lemma CLEAN_BODY_EVENTS: same pre/post but tracking ONLY
+         `exists e_acc. read events s = APPEND e_acc e /\ memaccess_inbounds e_acc R W`,
+         with pre ALSO carrying the bound hyps needed for guards (curlen<=248, 16i<=256, and the
+         per-subiter accept bounds acc1,acc2,acc3<=248 as EXTRA antecedents). Proof of (B): a walk
+         that resolves guards (using the supplied bounds, NO niblen fold needed since bounds are
+         hyps) + steps everything KEEPEV + at the 9 accesses extends memaccess_inbounds. Crucially
+         (B) does NO value folding so no fold-conversion trips on events.
+     Compose: ENSURES conjunction lemma `ensures s P Q1 C /\ ensures s P Q2 C ==> ensures s P (Q1/\Q2) C`
+     (need to find/prove the single-ensures version — ENSURES_N_CONJ exists for ensures_n; for plain
+     ensures use ENSURES_CONJ if present, else derive). The acc1/2/3<=248 bound hyps for (B) are
+     produced by the value proof's WOP/scaffold context (niblen monotonicity) and threaded into the
+     loop invariant, so the scaffold supplies them.
+   THIS is task #14's real deliverable: CLEAN_BODY_EVENTS lemma + the bound antecedents + the
+   ENSURES-conjoin. Stop trying to thread events through CLEAN_BODY's value tactics. *)
