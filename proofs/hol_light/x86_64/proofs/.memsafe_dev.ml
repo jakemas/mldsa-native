@@ -636,3 +636,22 @@ let clean_body_ms_tm =
    NB: the x86 step relation is functional/deterministic, but plain-ensures CONJ still needs the
    step-count alignment, hence ensures_n. This mirrors s2n-bignum's own constant-time architecture.
    This is the methodical path; the threaded-events _ms tactics are a dead end (unstable CHOOSE). *)
+
+(* ★★★ DEFINITIVE ANALYSIS (2026-06-26) — MEMSAFE infrastructure gap.
+   ensures_n LEMMAS exist (ENSURES_N_CONJ, ENSURES_ENSURES_N [needs x86 determinism hyp],
+   ENSURES_N_ENSURES, ENSURES_N_TRANS, etc.) BUT:
+   - No X86 ensures_n STEPPING tactic (X86_ENSURES_N_STEP_TAC absent) — can't drive an ensures_n
+     proof of the body the way X86_STEPS drives ensures.
+   - No PROVE_SAFETY_SPEC_TAC / DISCHARGE_SAFETY_PROPERTY_TAC (the automated constant-time path).
+   - No obvious x86-determinism lemma by name to discharge ENSURES_ENSURES_N's antecedent.
+   So BOTH viable routes need infrastructure not present in this s2n-bignum rev (eb5843f-era):
+     (a) threaded-events value walk  -> UNSTABLE (CHOOSE flakiness), dead end;
+     (b) decoupled ensures_n conjoin -> needs an X86 ensures_n stepper + determinism, i.e. build
+         a chunk of the constant-time tactic layer ourselves.
+   RECOMMENDATION (for the human / next effort): bump s2n-bignum to a rev that ships the full
+   constant-time tooling (PROVE_SAFETY_SPEC_TAC + DISCHARGE_SAFETY_PROPERTY_TAC + X86 ensures_n
+   steppers), add a `mldsa_rej_uniform_eta4` entry to subroutine_signatures.ml, then the MEMSAFE
+   proof is ~the pointwise pattern: mk_safety_spec + PROVE_SAFETY_SPEC_TAC (small, mostly automated).
+   The pointwise_avx2_asm.ml MEMSAFE proof (committed, cheat-free) is the exact template once that
+   tooling is present. Until then, the eta4 MEMSAFE stubs remain CHEAT_TAC (deferred, as originally
+   scoped). CORRECT is fully cheat-free and nix-building — that milestone stands. *)
