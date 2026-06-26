@@ -613,3 +613,26 @@ let clean_body_ms_tm =
      loop invariant, so the scaffold supplies them.
    THIS is task #14's real deliverable: CLEAN_BODY_EVENTS lemma + the bound antecedents + the
    ENSURES-conjoin. Stop trying to thread events through CLEAN_BODY's value tactics. *)
+
+(* TOOLING SURVEY (2026-06-26): available in this s2n-bignum (eb5843f-ish, fork consttime):
+   YES: ENSURES_N_CONJ, EVENTUALLY_N_CONJ, SAFE_META_EXISTS_TAC, DISCHARGE_MEMACCESS_INBOUNDS_TAC,
+        mk_safety_spec, gen_mk_safety_spec, MEMACCESS_INBOUNDS_APPEND, allowed_vars_e/EXISTS_E2_TAC,
+        the PR1014 DISCHARGE_MEMSAFE_* helpers (in tmp_memsafe_helpers.ml).
+   NO:  PROVE_SAFETY_SPEC_TAC, DISCHARGE_SAFETY_PROPERTY_TAC (this rev predates them) — so the
+        fully-automated pointwise-style PROVE_SAFETY_SPEC_TAC path is NOT available; must hand-build.
+   ★ FINAL DESIGN for CLEAN_BODY_EVENTS (task #14/#15), the robust decoupled route:
+     Plain `ensures` has NO postcondition-CONJ lemma; only `ensures_n` does (ENSURES_N_CONJ).
+     So work in ensures_n:
+       1. CLEAN_BODY is `ensures` — convert to ensures_n with its step count (use ENSURES_ENSURES_N
+          / the X86 stepping already yields a step count; or re-prove CLEAN_BODY as ensures_n).
+       2. Prove CLEAN_BODY_EVENTS as ensures_n (SAME step count, SAME pre/frame): track only the
+          events conjunct. Pre carries EXTRA bound antecedents acc1,acc2,acc3<=248 (so guard
+          resolution needs no niblen fold). Walk = X86 stepping (the ensures_n stepper) + per-guard
+          RIP resolution from the bounds + DISCHARGE_MEMACCESS_INBOUNDS at the 9 accesses. NO value
+          folds => no events-on-fold trips.
+       3. Conjoin via ENSURES_N_CONJ -> ensures_n with (value /\ events) post; convert back to ensures.
+     The acc1/2/3<=248 bounds: supplied by the scaffold loop-invariant (niblen monotonicity from the
+     WOP hyp7 forall m<N). Thread them into CLEAN_BODY_EVENTS's antecedents.
+   NB: the x86 step relation is functional/deterministic, but plain-ensures CONJ still needs the
+   step-count alignment, hence ensures_n. This mirrors s2n-bignum's own constant-time architecture.
+   This is the methodical path; the threaded-events _ms tactics are a dead end (unstable CHOOSE). *)
