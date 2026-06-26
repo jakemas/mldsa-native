@@ -10387,73 +10387,75 @@ let MLDSA_REJ_UNIFORM_ETA4_SUBROUTINE_CORRECT =
 *)
 
 (* ========================================================================= *)
-(* Memory safety theorem (skeleton)                                          *)
+(* Constant-time and memory safety proof (pointwise pattern).                *)
 (* ========================================================================= *)
 
-let MLDSA_REJ_UNIFORM_ETA4_MEMSAFE = prove
- (`!res buf table (inlist:byte list) e pc.
-        LENGTH inlist = 272 /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (res, 1024) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 272) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (table, 2048) /\
-        nonoverlapping (res, 1024) (buf, 272) /\
-        nonoverlapping (res, 1024) (table, 2048)
-        ==> ensures x86
-             (\s. bytes_loaded s (word pc) (BUTLAST mldsa_rej_uniform_eta4_tmc) /\
-                  read RIP s = word pc /\
-                  C_ARGUMENTS [res; buf; table] s /\
-                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
-                  read(memory :> bytes(table,2048)) s =
-                    num_of_wordlist mldsa_rej_uniform_table /\
-                  read events s = e)
-             (\s. read RIP s = word(pc + LENGTH (BUTLAST mldsa_rej_uniform_eta4_tmc)) /\
-                  (exists e2.
-                     read events s = APPEND e2 e /\
-                     memaccess_inbounds e2
-                       [buf,272; table,2048]
-                       [res,1024]))
-             (MAYCHANGE [RIP; RAX; RCX; R8; R9; R10; R11] ,,
-              MAYCHANGE [ZMM0; ZMM1; ZMM2; ZMM3; ZMM4; ZMM5; ZMM6] ,,
-              MAYCHANGE SOME_FLAGS ,, MAYCHANGE [events] ,,
-              MAYCHANGE [memory :> bytes(res,1024)])`,
-  CHEAT_TAC);;
+needs "s2n_bignum/x86/proofs/consttime.ml";;
+needs "mldsa_native/x86_64/proofs/subroutine_signatures.ml";;
 
-let MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_MEMSAFE = prove
- (`!res buf table (inlist:byte list) e pc stackpointer returnaddress.
-        LENGTH inlist = 272 /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (res, 1024) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (buf, 272) /\
-        nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (table, 2048) /\
-        nonoverlapping (res, 1024) (buf, 272) /\
-        nonoverlapping (res, 1024) (table, 2048) /\
-        nonoverlapping (stackpointer, 8) (res, 1024) /\
-        nonoverlapping (stackpointer, 8) (buf, 272) /\
-        nonoverlapping (stackpointer, 8) (table, 2048) /\
-        nonoverlapping (stackpointer, 8) (word pc, LENGTH mldsa_rej_uniform_eta4_mc)
-        ==> ensures x86
-             (\s. bytes_loaded s (word pc) mldsa_rej_uniform_eta4_mc /\
-                  read RIP s = word pc /\
-                  read RSP s = stackpointer /\
-                  read (memory :> bytes64 stackpointer) s = returnaddress /\
-                  C_ARGUMENTS [res; buf; table] s /\
-                  read(memory :> bytes(buf, 272)) s = num_of_wordlist inlist /\
-                  read(memory :> bytes(table,2048)) s =
-                    num_of_wordlist mldsa_rej_uniform_table /\
-                  read events s = e)
-             (\s. read RIP s = returnaddress /\
-                  read RSP s = word_add stackpointer (word 8) /\
-                  (exists e2.
-                     read events s = APPEND e2 e /\
-                     memaccess_inbounds e2
-                       [buf,272; table,2048]
-                       [res,1024]))
-             (MAYCHANGE [RIP; RSP; RAX; RCX; R8; R9; R10; R11] ,,
-              MAYCHANGE [ZMM0; ZMM1; ZMM2; ZMM3; ZMM4; ZMM5; ZMM6] ,,
-              MAYCHANGE SOME_FLAGS ,, MAYCHANGE [events] ,,
-              MAYCHANGE [memory :> bytes(res,1024)])`,
-  CHEAT_TAC);;
+let eta4_full_spec,eta4_public_vars = mk_safety_spec
+    ~keep_maychanges:true
+    (assoc "mldsa_rej_uniform_eta4_x86" subroutine_signatures)
+    MLDSA_REJ_UNIFORM_ETA4_CORRECT
+    MLDSA_REJ_UNIFORM_ETA4_EXEC;;
 
-(* TODO: ADD_IBT_RULE wrapper after MEMSAFE is fully proven
-let MLDSA_REJ_UNIFORM_ETA4_SUBROUTINE_MEMSAFE =
-  ADD_IBT_RULE MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_MEMSAFE;;
-*)
+let MLDSA_REJ_UNIFORM_ETA4_SAFE =
+  REWRITE_RULE [MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; SOME_FLAGS]
+  (time prove
+   (eta4_full_spec,
+    REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; SOME_FLAGS] THEN
+    PROVE_SAFETY_SPEC_TAC ~public_vars:eta4_public_vars
+      MLDSA_REJ_UNIFORM_ETA4_EXEC));;
+
+let MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_SAFE = time prove
+ (`exists f_events.
+       forall e res buf table pc stackpointer returnaddress.
+          nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (res, 1024) /\
+          nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (buf, 272) /\
+          nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_tmc) (table, 2048) /\
+          nonoverlapping (res, 1024) (buf, 272) /\
+          nonoverlapping (res, 1024) (table, 2048) /\
+          nonoverlapping (stackpointer, 8) (res, 1024) /\
+          nonoverlapping (stackpointer, 8) (buf, 272) /\
+          nonoverlapping (stackpointer, 8) (table, 2048)
+          ==> ensures x86
+               (\s. bytes_loaded s (word pc) mldsa_rej_uniform_eta4_tmc /\
+                    read RIP s = word pc /\ read RSP s = stackpointer /\
+                    read (memory :> bytes64 stackpointer) s = returnaddress /\
+                    C_ARGUMENTS [res; buf; table] s /\ read events s = e)
+               (\s. read RIP s = returnaddress /\
+                    read RSP s = word_add stackpointer (word 8) /\
+                    (exists e2. read events s = APPEND e2 e /\
+                         e2 = f_events buf table res pc stackpointer returnaddress /\
+                         memaccess_inbounds e2
+                           [buf,272; table,2048; res,1024; stackpointer,8]
+                           [res,1024; stackpointer,8]))
+               (\s s'. true)`,
+  X86_PROMOTE_RETURN_NOSTACK_TAC mldsa_rej_uniform_eta4_tmc
+    MLDSA_REJ_UNIFORM_ETA4_SAFE THEN DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let MLDSA_REJ_UNIFORM_ETA4_SUBROUTINE_SAFE = time prove
+ (`exists f_events.
+       forall e res buf table pc stackpointer returnaddress.
+          nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (res, 1024) /\
+          nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (buf, 272) /\
+          nonoverlapping (word pc, LENGTH mldsa_rej_uniform_eta4_mc) (table, 2048) /\
+          nonoverlapping (res, 1024) (buf, 272) /\
+          nonoverlapping (res, 1024) (table, 2048) /\
+          nonoverlapping (stackpointer, 8) (res, 1024) /\
+          nonoverlapping (stackpointer, 8) (buf, 272) /\
+          nonoverlapping (stackpointer, 8) (table, 2048)
+          ==> ensures x86
+               (\s. bytes_loaded s (word pc) mldsa_rej_uniform_eta4_mc /\
+                    read RIP s = word pc /\ read RSP s = stackpointer /\
+                    read (memory :> bytes64 stackpointer) s = returnaddress /\
+                    C_ARGUMENTS [res; buf; table] s /\ read events s = e)
+               (\s. read RIP s = returnaddress /\
+                    read RSP s = word_add stackpointer (word 8) /\
+                    (exists e2. read events s = APPEND e2 e /\
+                         e2 = f_events buf table res pc stackpointer returnaddress /\
+                         memaccess_inbounds e2
+                           [buf,272; table,2048; res,1024; stackpointer,8]
+                           [res,1024; stackpointer,8]))
+               (\s s'. true)`,
+  MATCH_ACCEPT_TAC(ADD_IBT_RULE MLDSA_REJ_UNIFORM_ETA4_NOIBT_SUBROUTINE_SAFE));;
