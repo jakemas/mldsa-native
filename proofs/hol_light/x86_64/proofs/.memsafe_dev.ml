@@ -675,3 +675,33 @@ let clean_body_ms_tm =
    lean shortcut exists. Revert to tasks #14-20 manual plan with the events-stash/decoupled design.
    The mk_safety_spec machinery + the eta4 sig entry remain useful for DERIVING the final SAFE-shaped
    spec from the proven core MEMSAFE (the spec SHAPE is auto-generated correctly). *)
+
+(* ★★★ DEFINITIVE ARCHITECTURE (2026-06-26) after exhausting all approaches:
+   The events hyp in the goal interferes with EVERY sub-iter's value-fold:
+     - SI1_FOLD_V2: CHOOSE failure (SUBITER_FOLD_STEP MP does existential reasoning over asl)
+     - SI2 step-24 X86_VSTEPS: mk_comb (verbose stepper conv builds ill-typed term on events CONS)
+     - COMPONENT_READ_OVER_WRITE / RULE_ASSUM: trip on events term
+   Patching each is endless whack-a-mole AND the interactive session degrades with redefs.
+   Automated mk_safety_spec/PROVE_SAFETY_SPEC_TAC: RULED OUT (linear-only, no loop, data-dep store
+   needs rax<=248; but the SHIMMED X86_SINGLE_STEP_TAC fixes r8b decode and reaches s28 before the
+   store-noncode block).
+   THE ONLY ROBUST PATH = FULLY DECOUPLE events from value:
+   (1) Prove CLEAN_BODY value part with the ORIGINAL CLEAN_BODY_FULL_TAC (events discarded) — works,
+       ~153s, gives `ensures ... (BUTLAST tmc) [pc+52 -> pc+52, value post] (MAYCHANGE incl events)`.
+   (2) Prove a SEPARATE pure-events body lemma:
+       `ensures ... (\s. pre-events-state) (\s. exists e2. events = APPEND e2 e0 /\ memaccess_inbounds e2 ..)
+        (MAYCHANGE ...)` BY a walk that uses X86_STEPS_KEEPEV ONLY (no value folds) and supplies the
+       guard bounds (curlen<=248, acc1/2/3<=248, 16i<=256) AS HYPOTHESES (passed in). The events walk
+       needs guard RIP-resolution (uses bounds) + per-access DISCHARGE_MEMSAFE but NO accept-count
+       fold and NO store value-fold — so NO CHOOSE/mk_comb interference.
+       KEY: the store-noncode check in the events walk also needs rax<=248 — supply as hyp; the
+       events walk's stores are proven inbounds via the same bound.
+   (3) COMPOSE (1)+(2): both are `ensures` over the SAME pre/trace with compatible MAYCHANGE; use
+       ENSURES_CONJ-style (or prove the conjoined postcondition by running BOTH ensures — they share
+       the step sequence). The combined post = value-post /\ events-post = clean_body_ms_tm's post.
+   The bounds (2) needs come FROM (1)'s invariant / the scaffold (which has niblen<=248 per i).
+   This is the events-stash idea done right: value and events proven SEPARATELY, never in one goal.
+   ESTIMATE: building the pure-events walk lemma + composition = the bulk of remaining work,
+   comparable to ~1/3 of the CLEAN_BODY effort (no folds, just steps+guards+discharge). Tractable
+   but multi-hour. Do it file-based via .memsafe_setup.ml + a dedicated .events_body.ml, NOT
+   interactively (session degrades). *)
