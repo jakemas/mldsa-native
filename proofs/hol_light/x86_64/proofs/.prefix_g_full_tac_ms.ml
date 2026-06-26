@@ -1,3 +1,9 @@
+(* Self-contained events-aware stepping (do not rely on driver-order definitions). *)
+let X86_SINGLE_STEP_KEEPEV_TAC th s =
+  time (X86_VERBOSE_STEP_TAC th s) THEN DISCARD_OLDSTATE_KEEP_EVENTS_TAC s THEN CLARIFY_TAC;;
+let X86_STEPS_KEEPEV_TAC th snums =
+  MAP_EVERY (X86_SINGLE_STEP_KEEPEV_TAC th) (statenames "s" snums);;
+
 (* MEMSAFE EventJump-COND cleanup (v3 + type guard): collapse the COND in the latest
    events hyp using the discharged JA-not-taken consequent. MESON-free, fast, valid. *)
 let MEMSAFE_COND_CLEANUP_TAC : tactic =
