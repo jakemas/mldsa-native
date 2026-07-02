@@ -75,3 +75,44 @@ let MAP_UNTIL_TARGET_PC f n = fun (asl, w) ->
     (TARGET_PC_REACHED_TAC target_pc ORELSE (f n THEN core (n + 1))) (asl, w)
   in
     core n (asl, w);;
+
+(* ------------------------------------------------------------------------- *)
+(* Byte->nibble decomposition helpers, shared between the eta2/eta4          *)
+(* rejection-sampling proofs.                                                *)
+(*                                                                           *)
+(* NB: these are byte-for-byte identical to the definitions in              *)
+(* aarch64/proofs/aarch64_utils.ml (merged in #176-era AArch64 eta work).   *)
+(* They are duplicated here so the x86 proofs do not depend on the AArch64  *)
+(* utils file; at upstream-PR time the intent is to hoist the shared set    *)
+(* into common/mldsa_specs.ml and drop both copies.                         *)
+(* ------------------------------------------------------------------------- *)
+
+(* Internal byte->nibble decomposition stored in int16 lanes (matching the   *)
+(* SIMD register layout used by the loop body). The public spec uses        *)
+(* BYTES_TO_NIBBLES at the natural 4-word bitwidth instead; this view is    *)
+(* bridged to the public one via NIBBLES_OF_BYTES_EQ_BYTES_TO_NIBBLES.       *)
+let NIBBLE_PAIR = define
+  `NIBBLE_PAIR (b:byte) =
+   [word(val b MOD 16):int16; word(val b DIV 16):int16]`;;
+
+let NIBBLES_OF_BYTES = define
+  `NIBBLES_OF_BYTES [] = ([]:(int16)list) /\
+   NIBBLES_OF_BYTES (CONS (b:byte) t) =
+   APPEND (NIBBLE_PAIR b) (NIBBLES_OF_BYTES t)`;;
+
+let NIBBLES_OF_BYTES_APPEND = prove
+ (`!l1 l2. NIBBLES_OF_BYTES(APPEND l1 l2) =
+           APPEND (NIBBLES_OF_BYTES l1) (NIBBLES_OF_BYTES l2)`,
+  LIST_INDUCT_TAC THEN
+  ASM_REWRITE_TAC[NIBBLES_OF_BYTES; APPEND; APPEND_ASSOC]);;
+
+(* Splits each input byte into its low and high 4-bit nibbles, expressed at *)
+(* the natural 4-bit width consumed by the REJ_SAMPLE_ETA{2,4} spec. The    *)
+(* output is twice the length of the input. Used at the proof boundary to   *)
+(* bridge the byte-shaped internal proof view to the nibble-shaped public   *)
+(* spec.                                                                    *)
+let BYTES_TO_NIBBLES = define
+  `BYTES_TO_NIBBLES [] = ([]:(4 word) list) /\
+   BYTES_TO_NIBBLES (CONS (b:byte) t) =
+   APPEND [word(val b MOD 16):4 word; word(val b DIV 16):4 word]
+          (BYTES_TO_NIBBLES t)`;;
