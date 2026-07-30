@@ -46,4 +46,4 @@ constant-time tests, but not formally proved.
 <!--- bibliography --->
 [^Round3_Spec]: Bai, Ducas, Kiltz, Lepoint, Lyubashevsky, Schwabe, Seiler, Stehlé: CRYSTALS-Dilithium Algorithm Specifications and Supporting Documentation (Version 3.1), [https://pq-crystals.org/dilithium/data/dilithium-specification-round3-20210208.pdf](https://pq-crystals.org/dilithium/data/dilithium-specification-round3-20210208.pdf)
 [^mlkem_native_soundness]: pq-code-package: mlkem-native SOUNDNESS document, [https://github.com/pq-code-package/mlkem-native/blob/main/SOUNDNESS.md](https://github.com/pq-code-package/mlkem-native/blob/main/SOUNDNESS.md)
-[^s2n_bignum_soundness]: Amazon Web Services: s2n-bignum soundness documentation, [https://github.com/awslabs/s2n-bignum/blob/main/doc/s2n_bignum_soundness.md](https://github.com/awslabs/s2n-bignum/blob/main/doc/s2n_bignum_soundness.md)
+[^s2n_bignum_soundness]: Amazon Web Services: s2n-bignum soundness documentation, [https://github.com/awslabs/s2n-bignum/blob/main/SOUNDNESS.md](https://github.com/awslabs/s2n-bignum/blob/main/SOUNDNESS.md)
